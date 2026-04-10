@@ -76,6 +76,42 @@ def render() -> None:
 
     st.write("Side-by-side comparison of 12 key metrics.")
 
+    # Inject CSS to enlarge the HTML-rendered metrics table so all 13 rows
+    # fit on screen without vertical scrolling and the text is easy to read.
+    st.markdown(
+        """
+        <style>
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 1.15rem;
+            margin: 0.5rem 0 1rem 0;
+        }
+        .metrics-table th,
+        .metrics-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+            text-align: right;
+            white-space: nowrap;
+        }
+        .metrics-table th {
+            background-color: rgba(128, 128, 128, 0.08);
+            font-weight: 600;
+            text-align: center;
+        }
+        .metrics-table th:first-child,
+        .metrics-table td:first-child {
+            text-align: left;
+            font-weight: 600;
+        }
+        .metrics-table tr:hover {
+            background-color: rgba(128, 128, 128, 0.06);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # Build a dataframe: rows = metrics, columns = tickers
     data: dict[str, list[str]] = {"Metric": [row[0] for row in _METRIC_ROWS]}
     for m in metrics_list:
@@ -83,6 +119,12 @@ def render() -> None:
             _format(getattr(m, attr), fmt) for _, attr, fmt in _METRIC_ROWS
         ]
     df = pd.DataFrame(data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # Render as HTML for full control over font size and row height
+    # (st.dataframe clips rows behind a fixed-height scroll container).
+    st.markdown(
+        df.to_html(index=False, classes="metrics-table", escape=False),
+        unsafe_allow_html=True,
+    )
 
     nav.nav_buttons(3, next_enabled=True)
