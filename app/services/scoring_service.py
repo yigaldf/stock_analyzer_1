@@ -1,3 +1,5 @@
+from itertools import groupby
+
 from app.models.schemas import CategoryScore, StockMetrics, StockRanking
 
 CATEGORIES = ["valuation", "growth", "profitability", "roic", "health", "dividend"]
@@ -83,7 +85,6 @@ def score_category(
         # Best gets 5, worst gets 1, linear interpolation (integer scores 1-5)
         # Stocks with equal raw values receive the same score (average of their positions).
         # Group by raw value first
-        from itertools import groupby
         groups: list[tuple[float, list[str]]] = []
         for raw_val, group_iter in groupby(sorted_values, key=lambda x: x[1]):
             groups.append((raw_val, [t for t, _ in group_iter]))

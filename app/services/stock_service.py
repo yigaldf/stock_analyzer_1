@@ -71,6 +71,7 @@ def get_stock_metrics(ticker: str) -> StockMetrics | None:
         except (TypeError, ValueError):
             return None
 
+    _dte = _get("debtToEquity")
     return StockMetrics(
         ticker=ticker,
         forward_pe=_get("forwardPE"),
@@ -83,9 +84,7 @@ def get_stock_metrics(ticker: str) -> StockMetrics | None:
         revenue_growth=_get("revenueGrowth"),
         eps_growth=_get("earningsGrowth"),
         roe=_get("returnOnEquity"),
-        debt_to_equity=(
-            _get("debtToEquity") / 100 if _get("debtToEquity") is not None else None
-        ),
+        debt_to_equity=_dte / 100 if _dte is not None else None,
         beta=_get("beta"),
         dividend_yield=_get("dividendYield"),
     )
