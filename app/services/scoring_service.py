@@ -80,7 +80,6 @@ def score_category(
     else:
         reverse = direction == "higher"
         sorted_values = sorted(values, key=lambda x: x[1], reverse=reverse)
-        n = len(sorted_values)
         # Best gets 5, worst gets 1, linear interpolation (integer scores 1-5)
         # Stocks with equal raw values receive the same score (average of their positions).
         # Group by raw value first
