@@ -13,4 +13,5 @@ dependencies = [
     "streamlit>=1.40.0",
     "yfinance>=0.2.50",
     "pydantic>=2.0.0",
+    "openai>=2.31.0",
 ]

@@ -4,10 +4,19 @@ Run with: uv run streamlit run streamlit_app.py
 """
 from __future__ import annotations
 
-import streamlit as st
+from dotenv import load_dotenv
 
-from app.ui import state
-from app.ui.screens import step1_select, step2_peers, step3_metrics, step4_ranking
+load_dotenv()  # noqa: E402 — must run before agent imports so env vars are set
+
+import streamlit as st  # noqa: E402
+
+from app.ui import state  # noqa: E402
+from app.ui.screens import (  # noqa: E402
+    step1_select,
+    step2_peers,
+    step3_metrics,
+    step4_ranking,
+)
 
 
 def main() -> None:
