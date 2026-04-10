@@ -8,18 +8,19 @@
 
 ## Commands
 - Install: `uv sync`
-- Run dev server: `uv run uvicorn app.main:app --reload`
+- Run app: `uv run streamlit run streamlit_app.py`
 - Run tests: `uv run pytest`
 - Lint: `uv run ruff check .`
 - Format: `uv run ruff format .`
 
 ## Project Structure
-- `app/` — FastAPI application
-- `app/main.py` — Entry point
-- `app/agents/` — Agno AI agents
-- `app/routers/` — API route handlers
-- `app/models/` — Pydantic models
-- `app/services/` — Business logic
+- `streamlit_app.py` — Streamlit entry point
+- `app/ui/` — Streamlit UI (screens, state, nav)
+- `app/ui/screens/` — One file per wizard step
+- `app/services/` — Pure-Python business logic (stock data, scoring)
+- `app/agents/` — Agno agents (peer discovery, recommendation)
+- `app/models/` — Pydantic schemas
+- `tests/` — pytest unit tests (no live API/LLM calls)
 
 ## Code Conventions
 - Use type hints everywhere
