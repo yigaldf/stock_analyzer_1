@@ -104,6 +104,94 @@ Use the **← Back** button on any screen to revisit earlier steps; your state i
 - **Service layer** — pure Python, fully unit-tested, no framework dependencies
 - **Agents** — Agno wrappers around OpenAI for peer discovery and narrative generation; all output validated before use
 
+### Agent architecture (Agno)
+
+The app uses **[Agno](https://github.com/agno-agi/agno)** — a lightweight Python framework for building LLM agents — for the two places where natural-language reasoning adds real value: **peer discovery** and **recommendation narrative**. Everything else (data fetching, scoring math, ranking) is deterministic Python.
+
+#### Why Agno?
+
+Agno gives us a minimal, typed abstraction over LLM providers:
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    instructions="You are an equity research analyst...",
+)
+response = agent.run("Stock: LULU — Lululemon Athletica (Consumer Cyclical)...")
+text = response.content
+```
+
+No framework lock-in, no hidden prompt gymnastics, easy to swap models (GPT-4o, GPT-4o-mini, Claude, etc.). Each agent is a stateless function call: **input → prompt → LLM → text → parsed output**.
+
+#### The two agents
+
+**1. `peers_agent.py` — Competitor discovery** (`suggest_peers(ticker, name, sector)`)
+
+| Piece | Value |
+|---|---|
+| Model | `gpt-4o` (higher-quality domain knowledge for peer identification) |
+| System prompt | Equity-research persona; prefers direct product-market competitors over broad sector matches |
+| Input | Ticker + company name + sector |
+| Output | Up to 10 candidate tickers as JSON |
+| Parser | Two-stage: direct `json.loads`, then regex fallback for LLMs that wrap JSON in prose/markdown |
+| Validation | Every returned ticker is then verified against yfinance before being shown to the user |
+| Fallback on failure | Empty list → UI offers a manual entry field |
+
+**2. `recommendation_agent.py` — Narrative recommendation** (`generate_recommendation(rankings, weights)`)
+
+| Piece | Value |
+|---|---|
+| Model | `gpt-4o-mini` (cheaper; this is a text generation task, not a knowledge task) |
+| System prompt | "Concise investment analyst"; must reference specific metric values, no financial-advice disclaimers |
+| Input | Top-ranked stock's category scores, the user's weight settings, runner-up info |
+| Output | A 2–3 sentence recommendation string |
+| Fallback on failure | Deterministic summary: *"Top pick: {ticker} with weighted score {score:.2f}."* |
+| Optimization | Only re-runs when the **top pick** changes (not on every slider adjustment), to save tokens |
+
+#### Design principles
+
+1. **Agents are leaf nodes, not orchestrators** — they take a plain argument in and return a plain value out. No tool calling, no multi-step reasoning loops. This keeps failures containable.
+2. **Lazy imports** — Agno and OpenAI are imported *inside* `_run_agent()`, not at module top level. This lets the unit tests patch `_run_agent` directly without needing any OpenAI key or Agno config to load the module.
+3. **Every agent has a deterministic fallback** — if the LLM returns nothing, malformed JSON, or raises any exception, the app falls back to a safe default (empty list, deterministic summary string). The app **never crashes on an AI failure**.
+4. **Validated output crosses the boundary** — the peers agent returns a list of strings, but those strings don't reach the UI until they've been verified against yfinance. No hallucinated tickers make it to the comparison table.
+5. **Mocked in tests** — `tests/test_peers_agent.py` and `tests/test_recommendation_agent.py` patch `_run_agent` so the 8 agent-related tests run in milliseconds with zero network calls.
+
+#### Agent interaction diagram
+
+```
+User input                                User sees
+    │                                         ▲
+    ▼                                         │
+┌───────────────┐                    ┌─────────────────────┐
+│ Streamlit UI  │                    │  Streamlit UI       │
+│   (Step 2)    │                    │     (Step 4)        │
+└───────┬───────┘                    └──────────▲──────────┘
+        │ ticker, name, sector                  │ narrative text
+        ▼                                       │
+┌──────────────────┐                  ┌─────────┴──────────┐
+│ suggest_peers()  │                  │ generate_          │
+│                  │                  │ recommendation()   │
+│  ┌────────────┐  │                  │                    │
+│  │ _run_agent │──┼──► OpenAI GPT-4o │  ┌────────────┐    │
+│  └────────────┘  │                  │  │ _run_agent │──► OpenAI GPT-4o-mini
+│        │         │                  │  └────────────┘    │
+│        ▼         │                  │        │           │
+│  _extract_       │                  │        ▼           │
+│  tickers()       │                  │  raw text (or      │
+│        │         │                  │  fallback summary) │
+│        ▼         │                  └─────────┬──────────┘
+│  validate via    │                            │
+│  yfinance        │                            │
+└──────────────────┘                            │
+        │                                       │
+        ▼                                       │
+ validated ticker list                  natural-language
+                                        recommendation
+```
+
 ### Scoring model
 
 Each stock is scored **1–5 relative to its peer group** across 6 categories:
