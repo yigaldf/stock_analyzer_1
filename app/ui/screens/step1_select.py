@@ -19,8 +19,15 @@ def render() -> None:
 
     info = None
     if ticker_input:
-        with st.spinner(f"Looking up {ticker_input}..."):
-            info = get_stock_info(ticker_input)
+        cached_info = st.session_state.get(state.STOCK_INFO)
+        if (
+            cached_info is not None
+            and st.session_state.get(state.TICKER) == ticker_input
+        ):
+            info = cached_info
+        else:
+            with st.spinner(f"Looking up {ticker_input}..."):
+                info = get_stock_info(ticker_input)
 
         if info is None:
             st.error(f"Ticker '{ticker_input}' not found. Try another symbol.")

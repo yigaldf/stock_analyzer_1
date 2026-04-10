@@ -44,6 +44,13 @@ def goto_step(n: int) -> None:
 
 
 def set_ticker(ticker: str, info: StockInfo) -> None:
+    # Clear downstream state only when switching to a different ticker
+    if st.session_state.get(TICKER) != ticker:
+        st.session_state[PEER_CANDIDATES] = []
+        st.session_state[SELECTED_PEERS] = []
+        st.session_state[METRICS_CACHE] = {}
+        st.session_state[LAST_TOP_PICK] = None
+        st.session_state[LAST_RECOMMENDATION] = None
     st.session_state[TICKER] = ticker
     st.session_state[STOCK_INFO] = info
 
