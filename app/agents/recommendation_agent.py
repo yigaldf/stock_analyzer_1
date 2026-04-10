@@ -35,7 +35,7 @@ def _format_prompt(rankings: list[StockRanking], weights: dict[str, float]) -> s
     top = rankings[0]
     runners = rankings[1:3]
     lines = [
-        f"User weights: " + ", ".join(
+        "User weights: " + ", ".join(
             f"{k}={v*100:.0f}%" for k, v in weights.items()
         ),
         "",
