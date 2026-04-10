@@ -66,6 +66,39 @@ def render() -> None:
         selected = new_selected
         state.set_selected_peers(selected)
 
+        # Allow user to add more tickers the AI missed
+        with st.expander("➕ Add more tickers manually"):
+            extra_input = st.text_input(
+                "Extra tickers (comma-separated)",
+                key="step2_extra_tickers",
+                placeholder="ONON, ADDYY, DECK",
+                help="Add competitors the AI may have missed.",
+            )
+            if st.button("Add", key="step2_add_extra"):
+                raw_extras = [
+                    t.strip().upper() for t in extra_input.split(",") if t.strip()
+                ]
+                # Skip tickers already in the list or the source stock itself
+                new_extras = [
+                    t
+                    for t in raw_extras
+                    if t not in candidates and t != info.ticker
+                ]
+                if new_extras:
+                    with st.spinner("Validating..."):
+                        validated_extras = validate_tickers(new_extras)
+                    if validated_extras:
+                        state.set_peer_candidates(candidates + validated_extras)
+                        st.success(f"Added: {', '.join(validated_extras)}")
+                        st.rerun()
+                    else:
+                        st.error(
+                            f"None of these tickers were recognized: "
+                            f"{', '.join(new_extras)}"
+                        )
+                elif raw_extras:
+                    st.info("All entered tickers are already in the list.")
+
     # Validation messages
     next_enabled = False
     if len(selected) == 0:

@@ -14,13 +14,20 @@ def _run_agent(prompt: str) -> str:
     from agno.models.openai import OpenAIChat
 
     agent = Agent(
-        model=OpenAIChat(id="gpt-4o-mini"),
+        model=OpenAIChat(id="gpt-4o"),
         instructions=(
-            "You are a financial research assistant. Given a stock, "
-            "return up to 10 publicly traded US competitors as JSON in the "
-            'form {"tickers": ["TICKER1", "TICKER2", ...]}. '
-            "Only return real tickers on major US exchanges. "
-            "Return ONLY the JSON object, no prose."
+            "You are an equity research analyst. Given a stock, return its "
+            "direct product-market competitors — companies that sell similar "
+            "products to similar customers in the same sub-industry. Prefer "
+            "close peers over broad sector matches. For apparel/athleisure, "
+            "include direct apparel brands (Nike, Adidas, Under Armour, On "
+            "Holding, Deckers, VF Corp, PVH, Gap, etc.) rather than unrelated "
+            "cyclicals. "
+            "Return exactly the JSON object "
+            '{"tickers": ["TICKER1", "TICKER2", ...]} with up to 10 tickers, '
+            "each a real symbol on NYSE/NASDAQ/AMEX (US listings or US-listed "
+            "ADRs for foreign peers). Return ONLY the JSON, no prose, no "
+            "markdown fences."
         ),
     )
     response = agent.run(prompt)
@@ -57,8 +64,11 @@ def _extract_tickers(raw: str) -> list[str]:
 def suggest_peers(ticker: str, name: str, sector: str) -> list[str]:
     """Ask the AI agent for up to 10 competitor tickers. Empty list on any failure."""
     prompt = (
-        f"Find up to 10 publicly traded US competitors for {ticker} "
-        f"({name}, sector: {sector}). "
+        f"Stock: {ticker} — {name} (sector: {sector}).\n"
+        "Task: list up to 10 direct product-market competitors. "
+        "Think about who this company's customers would shop as alternatives "
+        "and who shows up alongside it in investor peer-comparison tables. "
+        "Include close rivals even if their market cap is smaller. "
         'Respond ONLY with JSON: {"tickers": ["TICKER1", "TICKER2", ...]}'
     )
     try:
