@@ -110,7 +110,7 @@ Three-layer architecture:
 | 5 | Financial Health | 15% | Debt/Equity | Lower is better |
 | 6 | Dividend Yield | 10% | Dividend yield | Higher is better |
 
-### The 12 displayed metrics
+### The 12 scored metrics
 
 Split across the 6 categories:
 1. **Valuation:** Forward P/E, Trailing P/E, PEG ratio, Price/Sales
@@ -120,7 +120,9 @@ Split across the 6 categories:
 5. **Financial Health:** Debt/Equity, Beta
 6. **Dividend:** Dividend yield
 
-(Each category has one designated primary metric used for scoring; other metrics in the category are shown on Screen 3 for context.)
+Each category has one designated primary metric used for scoring; the other metrics in the category are shown on Screen 3 for context.
+
+**Plus one context-only field:** `market_cap` is fetched and displayed on Screen 1 (company card) and Screen 3 (comparison table header) but is not scored.
 
 ### Scoring rule (relative ranking)
 
