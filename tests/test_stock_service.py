@@ -32,6 +32,7 @@ def test_get_stock_info_valid_ticker(mock_ticker):
         "longName": "Lululemon Athletica Inc.",
         "sector": "Consumer Cyclical",
         "currentPrice": 342.10,
+        "marketCap": 58000000000,
     }
     info = get_stock_info("LULU")
     assert info is not None
@@ -39,6 +40,7 @@ def test_get_stock_info_valid_ticker(mock_ticker):
     assert info.name == "Lululemon Athletica Inc."
     assert info.sector == "Consumer Cyclical"
     assert info.current_price == 342.10
+    assert info.market_cap == 58000000000.0
 
 
 @patch("app.services.stock_service.yf.Ticker")

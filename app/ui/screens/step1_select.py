@@ -34,8 +34,12 @@ def render() -> None:
         else:
             state.set_ticker(ticker_input, info)
             st.success(f"Found: **{info.name}**")
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             col1.metric("Sector", info.sector)
             col2.metric("Current price", f"${info.current_price:,.2f}")
+            if info.market_cap is not None:
+                col3.metric("Market cap", f"${info.market_cap / 1e9:.1f}B")
+            else:
+                col3.metric("Market cap", "—")
 
     nav.nav_buttons(1, next_enabled=info is not None)

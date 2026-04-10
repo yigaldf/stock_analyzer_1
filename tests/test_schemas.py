@@ -7,9 +7,11 @@ def test_stock_info_roundtrip():
         name="Lululemon Athletica",
         sector="Consumer Cyclical",
         current_price=342.10,
+        market_cap=58_000_000_000,
     )
     assert info.ticker == "LULU"
     assert info.current_price == 342.10
+    assert info.market_cap == 58_000_000_000
 
 
 def test_stock_metrics_allows_none():

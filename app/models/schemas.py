@@ -6,6 +6,7 @@ class StockInfo(BaseModel):
     name: str
     sector: str
     current_price: float
+    market_cap: float | None = None
 
 
 class StockMetrics(BaseModel):

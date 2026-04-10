@@ -42,11 +42,14 @@ def get_stock_info(ticker: str) -> StockInfo | None:
     name = info.get("longName") or info.get("shortName") or ticker
     sector = info.get("sector") or "Unknown"
     price = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+    mcap = info.get("marketCap")
+    market_cap = float(mcap) if mcap is not None else None
     return StockInfo(
         ticker=ticker,
         name=name,
         sector=sector,
         current_price=float(price),
+        market_cap=market_cap,
     )
 
 
