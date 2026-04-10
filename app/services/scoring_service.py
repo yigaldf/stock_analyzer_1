@@ -1,4 +1,4 @@
-from app.models.schemas import CategoryScore, StockMetrics
+from app.models.schemas import CategoryScore, StockMetrics, StockRanking
 
 CATEGORIES = ["valuation", "growth", "profitability", "roic", "health", "dividend"]
 
@@ -82,19 +82,27 @@ def score_category(
         sorted_values = sorted(values, key=lambda x: x[1], reverse=reverse)
         n = len(sorted_values)
         # Best gets 5, worst gets 1, linear interpolation (integer scores 1-5)
-        for idx, (ticker, raw) in enumerate(sorted_values):
-            if n == 1:
+        # Stocks with equal raw values receive the same score (average of their positions).
+        # Group by raw value first
+        from itertools import groupby
+        groups: list[tuple[float, list[str]]] = []
+        for raw_val, group_iter in groupby(sorted_values, key=lambda x: x[1]):
+            groups.append((raw_val, [t for t, _ in group_iter]))
+
+        num_groups = len(groups)
+        for group_idx, (raw_val, tickers) in enumerate(groups):
+            if num_groups == 1:
                 score = 5
             else:
-                # position 0 (best) → 5, position n-1 (worst) → 1
-                score_float = 5 - (4 * idx / (n - 1))
+                score_float = 5 - (4 * group_idx / (num_groups - 1))
                 score = round(score_float)
-            result[ticker] = CategoryScore(
-                category=category,
-                score=score,
-                raw_value=raw,
-                display=_format_display(category, raw),
-            )
+            for ticker in tickers:
+                result[ticker] = CategoryScore(
+                    category=category,
+                    score=score,
+                    raw_value=raw_val,
+                    display=_format_display(category, raw_val),
+                )
 
     for ticker in missing:
         result[ticker] = CategoryScore(
@@ -105,3 +113,46 @@ def score_category(
         )
 
     return result
+
+
+def compute_weighted_scores(
+    stocks: list[StockMetrics],
+    weights: dict[str, float],
+) -> list[StockRanking]:
+    """Full pipeline: score all categories → apply weights → sort → assign ranks.
+
+    Weights are normalized internally so they always sum to 1.0.
+    """
+    # Normalize weights
+    total = sum(weights.get(cat, 0.0) for cat in CATEGORIES)
+    if total <= 0:
+        raise ValueError("At least one category weight must be positive.")
+    norm = {cat: weights.get(cat, 0.0) / total for cat in CATEGORIES}
+
+    # Score each category
+    per_category: dict[str, dict[str, CategoryScore]] = {}
+    for cat in CATEGORIES:
+        per_category[cat] = score_category(cat, stocks)
+
+    # Assemble per-stock rankings
+    rankings: list[StockRanking] = []
+    for stock in stocks:
+        category_scores = [per_category[cat][stock.ticker] for cat in CATEGORIES]
+        weighted = sum(
+            cs.score * norm[cs.category] for cs in category_scores
+        )
+        rankings.append(
+            StockRanking(
+                ticker=stock.ticker,
+                category_scores=category_scores,
+                weighted_score=round(weighted, 4),
+                rank=0,  # filled in below
+            )
+        )
+
+    # Sort: weighted_score desc, then ticker asc (alphabetical tie-break)
+    rankings.sort(key=lambda r: (-r.weighted_score, r.ticker))
+    for idx, r in enumerate(rankings, start=1):
+        r.rank = idx
+
+    return rankings
