@@ -76,7 +76,9 @@ def get_stock_metrics(ticker: str) -> StockMetrics | None:
         ticker=ticker,
         forward_pe=_get("forwardPE"),
         trailing_pe=_get("trailingPE"),
-        peg_ratio=_get("pegRatio"),
+        # yfinance renamed pegRatio -> trailingPegRatio in recent versions.
+        # Read the new field first, fall back to the legacy key for older stocks.
+        peg_ratio=_get("trailingPegRatio") or _get("pegRatio"),
         price_to_sales=_get("priceToSalesTrailing12Months"),
         market_cap=_get("marketCap"),
         profit_margin=_get("profitMargins"),
