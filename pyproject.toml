@@ -10,4 +10,8 @@ dependencies = [
     "pytest>=9.0.3",
     "ruff>=0.15.9",
     "uvicorn>=0.44.0",
+    "streamlit>=1.40.0",
+    "yfinance>=0.2.50",
+    "pydantic>=2.0.0",
+    "openai>=2.31.0",
 ]
