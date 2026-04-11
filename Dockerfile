@@ -7,7 +7,6 @@ COPY --from=ghcr.io/astral-sh/uv:0.7.13 /uv /uvx /bin/
 
 ENV DEBIAN_FRONTEND=noninteractive \
     UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
@@ -25,19 +24,21 @@ RUN uv run playwright install --with-deps chromium && \
     chmod -R a+rX /opt/playwright
 
 # --- Layer 3: Non-root user (Hugging Face Spaces runs containers as UID 1000) ---
-RUN useradd -m -u 1000 app && chown -R app:app /app
+# Deliberately NO `chown -R app:app /app`: the venv is already world-readable
+# via Python's default umask, and chown-ing it balloons the image by ~670 MB
+# because Docker's overlay filesystem copies every file into a new layer.
+RUN useradd -m -u 1000 app
 USER app
 
 # --- Layer 4: App source (most-changing layer last for caching) ---
 COPY --chown=app:app streamlit_app.py README.md ./
 COPY --chown=app:app app/ ./app/
 
-# Install the local project itself now that source is present.
-RUN uv sync --frozen --no-dev
-
 EXPOSE 7860
 
-CMD ["uv", "run", "streamlit", "run", "streamlit_app.py", \
+# Invoke the venv's streamlit binary directly (avoids `uv run` metadata
+# operations on a root-owned venv at runtime).
+CMD ["/app/.venv/bin/streamlit", "run", "streamlit_app.py", \
      "--server.port=7860", \
      "--server.address=0.0.0.0", \
      "--server.headless=true", \
