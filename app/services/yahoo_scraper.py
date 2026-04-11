@@ -9,7 +9,7 @@ from collections.abc import Callable
 
 from selectolax.parser import HTMLParser
 
-from app.models.schemas import StockMetrics
+from app.models.schemas import QuarterlyValuation, StockMetrics
 
 
 def _to_float(s: str | None) -> float | None:
@@ -115,6 +115,24 @@ _ALL_FLAT_MAPS: list[dict[str, tuple[str, _Converter]]] = [
 ]
 
 
+# Maps Yahoo valuation-grid row labels to (shared field name, converter).
+# The StockMetrics snapshot field and QuarterlyValuation attribute happen
+# to have the same name for every row, so we store a single name. Label
+# strings must match the fixture verbatim — Yahoo does NOT suffix these
+# rows with "(ttm)"/"(mrq)", unlike the flat-section labels.
+_VALUATION_MAP: dict[str, tuple[str, _Converter]] = {
+    "Market Cap": ("market_cap", _to_magnitude),
+    "Enterprise Value": ("enterprise_value", _to_magnitude),
+    "Trailing P/E": ("trailing_pe", _to_float),
+    "Forward P/E": ("forward_pe", _to_float),
+    "PEG Ratio (5yr expected)": ("peg_ratio", _to_float),
+    "Price/Sales": ("price_to_sales", _to_float),
+    "Price/Book": ("price_to_book", _to_float),
+    "Enterprise Value/Revenue": ("ev_to_revenue", _to_float),
+    "Enterprise Value/EBITDA": ("ev_to_ebitda", _to_float),
+}
+
+
 def _parse_stat_rows(doc: HTMLParser) -> dict[str, str]:
     """Walk the document and return {label: raw_value_string} for every
     recognizable 2-cell row.
@@ -150,6 +168,69 @@ def _apply_flat_maps(rows: dict[str, str]) -> dict[str, float | None]:
     return out
 
 
+def _parse_valuation_table(
+    doc: HTMLParser,
+) -> tuple[dict[str, float | None], list[QuarterlyValuation]]:
+    """Parse Yahoo's Valuation Measures historical grid.
+
+    Yahoo renders this section as a ``<table>`` whose ``<thead>`` has a
+    single ``<tr>`` with 7 ``<th>`` cells — an empty corner cell followed
+    by 6 period labels ("Current" + 5 historical quarter dates). The
+    ``<tbody>`` has one ``<tr>`` per metric with 7 ``<td>`` cells: a
+    label cell followed by 6 value cells aligned with the header columns.
+
+    Returns:
+        snapshot: dict of StockMetrics field name -> value parsed from
+                  the "Current" column (used to populate the top-level
+                  StockMetrics valuation fields).
+        history:  one QuarterlyValuation per period column (including
+                  "Current"), in the left-to-right order Yahoo renders.
+    """
+    # 1. Find the header row that defines the period column labels. The
+    #    valuation grid is the only <thead><tr> on the page with >= 6 <th>
+    #    cells, so this selector is safe.
+    period_labels: list[str] = []
+    for tr in doc.css("thead tr"):
+        th_cells = tr.css("th")
+        if len(th_cells) >= 6:
+            # First <th> is the empty corner cell; the rest are period labels.
+            labels = [c.text(strip=True) for c in th_cells]
+            # Drop the leading empty cell.
+            period_labels = [label for label in labels[1:] if label]
+            if period_labels:
+                break
+
+    if not period_labels:
+        return {}, []
+
+    # 2. Build one QuarterlyValuation per period column.
+    histories: list[QuarterlyValuation] = [
+        QuarterlyValuation(period=p) for p in period_labels
+    ]
+
+    # 3. Walk valuation rows and populate both snapshot + histories.
+    #    A valuation row has 1 label <td> + N value <td>s where
+    #    N == len(period_labels). Any row whose label isn't a known
+    #    valuation metric is ignored.
+    snapshot: dict[str, float | None] = {}
+    expected_len = 1 + len(period_labels)
+    for tr in doc.css("tr"):
+        cells = tr.css("td")
+        if len(cells) != expected_len:
+            continue
+        label = cells[0].text(strip=True)
+        if label not in _VALUATION_MAP:
+            continue
+        field, converter = _VALUATION_MAP[label]
+        for idx, value_cell in enumerate(cells[1:]):
+            parsed = converter(value_cell.text(strip=True))
+            setattr(histories[idx], field, parsed)
+            if idx == 0:
+                snapshot[field] = parsed
+
+    return snapshot, histories
+
+
 def _parse_document(html: str, ticker: str) -> StockMetrics | None:
     """Parse a Yahoo Key Statistics HTML page into a StockMetrics.
 
@@ -157,8 +238,8 @@ def _parse_document(html: str, ticker: str) -> StockMetrics | None:
     returns a (possibly partial) StockMetrics populated from the flat
     statistics sections (Profitability, Management Effectiveness, Income
     Statement, Balance Sheet, Cash Flow, Stock Price History, and
-    Dividends & Splits). The Valuation Measures historical grid is parsed
-    separately in a later task.
+    Dividends & Splits) plus the Valuation Measures historical grid
+    (top-level snapshot fields + ``valuation_history``).
     """
     try:
         doc = HTMLParser(html)
@@ -170,4 +251,14 @@ def _parse_document(html: str, ticker: str) -> StockMetrics | None:
     rows = _parse_stat_rows(doc)
     flat_fields = _apply_flat_maps(rows)
 
-    return StockMetrics(ticker=ticker, **flat_fields)
+    snapshot, history = _parse_valuation_table(doc)
+    # Snapshot populates the top-level StockMetrics valuation fields.
+    # Flat-map fields win over snapshot on any overlap (none currently,
+    # but defensive).
+    merged = {**snapshot, **flat_fields}
+
+    return StockMetrics(
+        ticker=ticker,
+        valuation_history=history,
+        **merged,
+    )

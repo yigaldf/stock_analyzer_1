@@ -73,3 +73,46 @@ def test_parse_document_dividend_fields_parseable(lulu_html):
     m = _parse_document(lulu_html, "LULU")
     assert hasattr(m, "forward_dividend_yield")
     assert hasattr(m, "payout_ratio")
+
+
+def test_parse_document_extracts_valuation_snapshot(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    # Current-column valuation snapshot should populate the top-level
+    # StockMetrics fields.
+    assert m.market_cap is not None
+    assert m.market_cap > 1e9  # LULU is a multi-billion-dollar company
+    assert m.enterprise_value is not None
+    assert m.trailing_pe is not None
+    assert m.trailing_pe > 0
+    assert m.forward_pe is not None
+    assert m.forward_pe > 0
+    # PEG was the headline reliability bug this scraper was built for.
+    assert m.peg_ratio is not None
+    assert m.peg_ratio > 0
+    assert m.price_to_sales is not None
+    assert m.price_to_book is not None
+    assert m.ev_to_revenue is not None
+    assert m.ev_to_ebitda is not None
+
+
+def test_parse_document_populates_valuation_history(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    assert isinstance(m.valuation_history, list)
+    assert len(m.valuation_history) >= 2
+    # First entry must be the "Current" snapshot.
+    assert m.valuation_history[0].period == "Current"
+    # Top-level forward_pe should equal valuation_history[0].forward_pe
+    # (they're parsed from the same cell).
+    assert m.forward_pe == m.valuation_history[0].forward_pe
+    # At least one historical entry (period != "Current") should have a
+    # non-None forward_pe — Yahoo shows ~5 historical quarters.
+    historical = [q for q in m.valuation_history if q.period != "Current"]
+    assert len(historical) >= 1
+    assert any(q.forward_pe is not None for q in historical)
+
+
+def test_parse_document_valuation_history_labels_are_strings(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    for q in m.valuation_history:
+        assert isinstance(q.period, str)
+        assert q.period  # non-empty
