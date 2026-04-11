@@ -5,11 +5,44 @@ or `None` on hard failure.
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
+from typing import Literal
 
+import httpx
 from selectolax.parser import HTMLParser
 
 from app.models.schemas import QuarterlyValuation, StockMetrics
+
+logger = logging.getLogger(__name__)
+
+_URL_TEMPLATE = "https://finance.yahoo.com/quote/{ticker}/key-statistics/?guccounter=1"
+_HTTPX_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+}
+_HTTPX_TIMEOUT = 10.0  # seconds
+_PLAYWRIGHT_TIMEOUT_MS = 15_000  # milliseconds
+_STUB_MIN_SIZE = 50_000  # bytes — below this we treat the response as an anti-bot stub
+
+_client: httpx.Client | None = None
+
+
+def _get_httpx_client() -> httpx.Client:
+    """Lazily build and reuse one module-level httpx Client.
+
+    Lazy creation lets pytest-httpx intercept calls without needing to
+    monkeypatch a pre-instantiated client.
+    """
+    global _client
+    if _client is None:
+        _client = httpx.Client(
+            timeout=_HTTPX_TIMEOUT, headers=_HTTPX_HEADERS, follow_redirects=True
+        )
+    return _client
 
 
 def _to_float(s: str | None) -> float | None:
@@ -264,3 +297,137 @@ def _parse_document(html: str, ticker: str) -> StockMetrics | None:
         valuation_history=history,
         **merged,
     )
+
+
+def _looks_like_anti_bot_stub(html: str) -> bool:
+    """Detect Yahoo's anti-bot 404 stub.
+
+    Yahoo serves a ~500-byte JS redirect page with the phrase
+    'Content is currently unavailable' when its edge layer rejects a
+    bare HTTP client. Real rendered pages are north of 200 KB, so a
+    dual check (size + phrase) is both cheap and robust.
+    """
+    if len(html) < _STUB_MIN_SIZE:
+        return True
+    if "Content is currently unavailable" in html:
+        return True
+    return False
+
+
+def _fetch_via_httpx(ticker: str) -> str | None:
+    """Try the fast httpx path. Returns HTML on success, None on any failure.
+
+    'Failure' includes HTTP errors, non-200 status, or an anti-bot stub.
+    """
+    url = _URL_TEMPLATE.format(ticker=ticker)
+    try:
+        response = _get_httpx_client().get(url)
+    except httpx.HTTPError as exc:
+        logger.warning("yahoo_scraper: httpx error for %s: %s", ticker, exc)
+        return None
+    if response.status_code != 200:
+        logger.warning(
+            "yahoo_scraper: httpx non-200 (%s) for %s",
+            response.status_code,
+            ticker,
+        )
+        return None
+    html = response.text
+    if _looks_like_anti_bot_stub(html):
+        logger.info(
+            "yahoo_scraper: httpx returned anti-bot stub for %s, "
+            "will fall back to playwright",
+            ticker,
+        )
+        return None
+    return html
+
+
+def _fetch_via_playwright(ticker: str) -> str | None:
+    """Fallback path: render the page in a real Chromium browser.
+
+    Uses playwright.sync_api. The browser binary must be installed once via
+    `uv run playwright install chromium`. If Playwright or the binary is
+    unavailable, returns None and logs a warning.
+    """
+    try:
+        from playwright.sync_api import Error as PlaywrightError, sync_playwright
+    except ImportError:
+        logger.error(
+            "yahoo_scraper: playwright package not installed; "
+            "cannot fall back for %s",
+            ticker,
+        )
+        return None
+
+    url = _URL_TEMPLATE.format(ticker=ticker)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                context = browser.new_context()
+                page = context.new_page()
+                page.goto(url, timeout=_PLAYWRIGHT_TIMEOUT_MS)
+                # Wait until the Valuation Measures table has rendered.
+                page.wait_for_selector(
+                    "text=Forward P/E", timeout=_PLAYWRIGHT_TIMEOUT_MS
+                )
+                html = page.content()
+            finally:
+                browser.close()
+        return html
+    except PlaywrightError as exc:
+        logger.warning("yahoo_scraper: playwright error for %s: %s", ticker, exc)
+        return None
+    except Exception as exc:  # unexpected (e.g. missing chromium binary)
+        logger.warning(
+            "yahoo_scraper: playwright unexpected error for %s: %s", ticker, exc
+        )
+        return None
+
+
+def fetch(ticker: str) -> StockMetrics | None:
+    """Fetch and parse Yahoo Key Statistics for one ticker.
+
+    Tiered strategy:
+      1. Try httpx (fast path). On success, parse and tag source='httpx'.
+      2. On any httpx failure (network, non-200, anti-bot stub, tiny response),
+         fall back to Playwright (real Chromium). On success, parse and tag
+         source='playwright'.
+      3. If both backends fail, return None.
+
+    The underlying _parse_document is agnostic to which backend produced
+    the HTML — both paths hand it the same Yahoo markup.
+    """
+    # Primary
+    html = _fetch_via_httpx(ticker)
+    source: Literal["httpx", "playwright"] | None = "httpx" if html else None
+
+    # Fallback
+    if html is None:
+        try:
+            html = _fetch_via_playwright(ticker)
+        except Exception as exc:
+            logger.warning(
+                "yahoo_scraper: playwright raised unexpectedly for %s: %s",
+                ticker,
+                exc,
+            )
+            html = None
+        if html:
+            source = "playwright"
+
+    if html is None:
+        return None
+
+    try:
+        metrics = _parse_document(html, ticker)
+    except Exception as exc:
+        logger.warning("yahoo_scraper: parse failed for %s: %s", ticker, exc)
+        return None
+
+    if metrics is None:
+        return None
+
+    metrics.source = source
+    return metrics

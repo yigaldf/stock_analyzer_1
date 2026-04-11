@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -72,6 +74,9 @@ class StockMetrics(BaseModel):
 
     # Historical trend (5 quarters + "Current" = typically 6 entries)
     valuation_history: list[QuarterlyValuation] = []
+
+    # Provenance — which fetcher backend produced this record.
+    source: Literal["httpx", "playwright"] | None = None
 
 
 class CategoryScore(BaseModel):

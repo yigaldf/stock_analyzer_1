@@ -128,3 +128,18 @@ def test_stock_metrics_with_valuation_history():
     assert len(m.valuation_history) == 3
     assert m.valuation_history[0].forward_pe == 13.0
     assert m.valuation_history[2].period == "9/30/2025"
+
+
+def test_stock_metrics_source_defaults_none():
+    m = StockMetrics(ticker="LULU")
+    assert m.source is None
+
+
+def test_stock_metrics_source_accepts_httpx():
+    m = StockMetrics(ticker="LULU", source="httpx")
+    assert m.source == "httpx"
+
+
+def test_stock_metrics_source_accepts_playwright():
+    m = StockMetrics(ticker="LULU", source="playwright")
+    assert m.source == "playwright"
