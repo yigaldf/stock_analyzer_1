@@ -1,11 +1,17 @@
 """Wizard progress indicator and back/next button bar."""
+
 from __future__ import annotations
 
 import streamlit as st
 
 from app.ui import state
 
-STEP_LABELS = ["Select Stock", "Pick Competitors", "Compare Metrics", "Rank & Recommend"]
+STEP_LABELS = [
+    "Select Stock",
+    "Pick Competitors",
+    "Compare Metrics",
+    "Rank & Recommend",
+]
 
 
 def progress_header(current_step: int) -> None:

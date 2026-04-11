@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 
 from app.models.schemas import StockInfo, StockMetrics
+from app.services import yahoo_scraper
 
 
 def _is_valid_info(info: dict | None) -> bool:
@@ -54,37 +55,12 @@ def get_stock_info(ticker: str) -> StockInfo | None:
 
 
 def get_stock_metrics(ticker: str) -> StockMetrics | None:
-    """Fetch all 12 scoring metrics + market_cap for one ticker."""
-    try:
-        info = yf.Ticker(ticker).info
-    except Exception:
-        return None
-    if not _is_valid_info(info):
-        return None
+    """Fetch all scoring metrics for one ticker via the Yahoo HTML scraper.
 
-    def _get(key: str) -> float | None:
-        v = info.get(key)
-        if v is None:
-            return None
-        try:
-            return float(v)
-        except (TypeError, ValueError):
-            return None
-
-    _dte = _get("debtToEquity")
-    return StockMetrics(
-        ticker=ticker,
-        forward_pe=_get("forwardPE"),
-        trailing_pe=_get("trailingPE"),
-        peg_ratio=_get("pegRatio"),
-        price_to_sales=_get("priceToSalesTrailing12Months"),
-        market_cap=_get("marketCap"),
-        profit_margin=_get("profitMargins"),
-        operating_margin=_get("operatingMargins"),
-        revenue_growth=_get("revenueGrowth"),
-        eps_growth=_get("earningsGrowth"),
-        roe=_get("returnOnEquity"),
-        debt_to_equity=_dte / 100 if _dte is not None else None,
-        beta=_get("beta"),
-        dividend_yield=_get("dividendYield"),
-    )
+    Step 1 (`validate_tickers`, `get_stock_info`) still uses yfinance because
+    it's faster for the existence-check and basic info use case. Step 3's
+    full metrics fetch uses the scraper (via tiered httpx → Playwright
+    pipeline) to get reliable PEG, historical valuation, same-snapshot
+    pricing across peers, and source provenance.
+    """
+    return yahoo_scraper.fetch(ticker)

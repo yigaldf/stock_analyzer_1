@@ -9,22 +9,154 @@ from app.models.schemas import StockMetrics
 from app.services.stock_service import get_stock_metrics
 from app.ui import nav, state
 
-# (display name, attr, formatter)
-_METRIC_ROWS: list[tuple[str, str, Callable[[float], str]]] = [
-    ("Fwd P/E", "forward_pe", lambda v: f"{v:.1f}x"),
-    ("Trailing P/E", "trailing_pe", lambda v: f"{v:.1f}x"),
-    ("PEG", "peg_ratio", lambda v: f"{v:.2f}"),
-    ("P/S", "price_to_sales", lambda v: f"{v:.1f}"),
-    ("Market cap", "market_cap", lambda v: f"${v/1e9:.1f}B"),
-    ("Rev growth", "revenue_growth", lambda v: f"{v*100:.1f}%"),
-    ("EPS growth", "eps_growth", lambda v: f"{v*100:.1f}%"),
-    ("Op margin", "operating_margin", lambda v: f"{v*100:.1f}%"),
-    ("Profit margin", "profit_margin", lambda v: f"{v*100:.1f}%"),
-    ("ROE", "roe", lambda v: f"{v*100:.1f}%"),
-    ("D/E", "debt_to_equity", lambda v: f"{v:.2f}"),
-    ("Beta", "beta", lambda v: f"{v:.2f}"),
-    ("Div yield", "dividend_yield", lambda v: f"{v*100:.2f}%"),
+# Each group is (section label, list of (display name, attr, formatter) rows).
+_METRIC_GROUPS: list[tuple[str, list[tuple[str, str, Callable[[float], str]]]]] = [
+    (
+        "Valuation",
+        [
+            ("Forward P/E", "forward_pe", lambda v: f"{v:.1f}x"),
+            ("Trailing P/E", "trailing_pe", lambda v: f"{v:.1f}x"),
+            ("PEG (5Y)", "peg_ratio", lambda v: f"{v:.2f}"),
+            ("Price/Sales", "price_to_sales", lambda v: f"{v:.1f}"),
+            ("Price/Book", "price_to_book", lambda v: f"{v:.1f}"),
+            ("EV/EBITDA", "ev_to_ebitda", lambda v: f"{v:.1f}"),
+            ("EV/Revenue", "ev_to_revenue", lambda v: f"{v:.1f}"),
+        ],
+    ),
+    (
+        "Profitability",
+        [
+            ("Operating Margin", "operating_margin", lambda v: f"{v * 100:.1f}%"),
+            ("Profit Margin", "profit_margin", lambda v: f"{v * 100:.1f}%"),
+        ],
+    ),
+    (
+        "Capital Efficiency",
+        [
+            ("ROE", "roe", lambda v: f"{v * 100:.1f}%"),
+            ("ROA", "roa", lambda v: f"{v * 100:.1f}%"),
+        ],
+    ),
+    (
+        "Growth",
+        [
+            ("Revenue Growth (yoy)", "revenue_growth_yoy", lambda v: f"{v * 100:.1f}%"),
+            (
+                "Earnings Growth (yoy)",
+                "earnings_growth_yoy",
+                lambda v: f"{v * 100:.1f}%",
+            ),
+        ],
+    ),
+    (
+        "Financial Health",
+        [
+            ("Debt/Equity", "debt_to_equity", lambda v: f"{v * 100:.1f}%"),
+            ("Current Ratio", "current_ratio", lambda v: f"{v:.2f}"),
+            ("Total Cash", "total_cash", lambda v: f"${v / 1e9:.2f}B"),
+            ("Total Debt", "total_debt", lambda v: f"${v / 1e9:.2f}B"),
+        ],
+    ),
+    (
+        "Cash Flow",
+        [
+            (
+                "Operating Cash Flow",
+                "operating_cash_flow",
+                lambda v: f"${v / 1e9:.2f}B",
+            ),
+            (
+                "Levered Free Cash Flow",
+                "levered_free_cash_flow",
+                lambda v: f"${v / 1e9:.2f}B",
+            ),
+        ],
+    ),
+    (
+        "Market Context",
+        [
+            ("Beta (5Y)", "beta", lambda v: f"{v:.2f}"),
+            ("Market Cap", "market_cap", lambda v: f"${v / 1e9:.2f}B"),
+            ("Enterprise Value", "enterprise_value", lambda v: f"${v / 1e9:.2f}B"),
+        ],
+    ),
+    (
+        "Dividend",
+        [
+            (
+                "Forward Dividend Yield",
+                "forward_dividend_yield",
+                lambda v: f"{v * 100:.2f}%",
+            ),
+            ("Payout Ratio", "payout_ratio", lambda v: f"{v * 100:.1f}%"),
+        ],
+    ),
 ]
+
+
+# Stylesheet: preserves the existing .metrics-table look from the pre-Task-11
+# single-table version, plus a .source-badge pill rendered above each ticker
+# column so users can see which fetch backend produced the row.
+_STEP3_CSS = """
+<style>
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1.1rem;
+    margin: 0.25rem 0 1rem 0;
+}
+.metrics-table th,
+.metrics-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    text-align: right;
+    white-space: nowrap;
+}
+.metrics-table th {
+    background-color: rgba(128, 128, 128, 0.08);
+    font-weight: 600;
+    text-align: center;
+}
+.metrics-table th:first-child,
+.metrics-table td:first-child {
+    text-align: left;
+    font-weight: 600;
+}
+.metrics-table tr:hover {
+    background-color: rgba(128, 128, 128, 0.06);
+}
+.source-badges {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin: 0.25rem 0 0.75rem 0;
+    font-size: 0.9rem;
+}
+.source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-weight: 500;
+}
+.source-badge.httpx {
+    background-color: rgba(46, 160, 67, 0.18);
+    color: #2ea043;
+    border: 1px solid rgba(46, 160, 67, 0.4);
+}
+.source-badge.playwright {
+    background-color: rgba(212, 136, 6, 0.18);
+    color: #d48806;
+    border: 1px solid rgba(212, 136, 6, 0.4);
+}
+.source-badge.unknown {
+    background-color: rgba(128, 128, 128, 0.18);
+    color: #888;
+    border: 1px solid rgba(128, 128, 128, 0.4);
+}
+</style>
+"""
 
 
 def _format(value: float | None, fmt: Callable[[float], str]) -> str:
@@ -56,6 +188,67 @@ def _fetch_all_metrics() -> list[str]:
     return errors
 
 
+def _source_badge_html(metrics_list: list[StockMetrics]) -> str:
+    """Render a row of pill-shaped badges, one per ticker, showing which
+    backend produced each stock's metrics (httpx fast path or playwright
+    fallback). Rendered once above the grouped tables."""
+    parts: list[str] = ['<div class="source-badges">']
+    for m in metrics_list:
+        if m.source == "httpx":
+            cls = "httpx"
+            text = f"⚡ {m.ticker} via httpx"
+        elif m.source == "playwright":
+            cls = "playwright"
+            text = f"🎭 {m.ticker} via playwright"
+        else:
+            cls = "unknown"
+            text = f"— {m.ticker} (source unknown)"
+        parts.append(f'<span class="source-badge {cls}">{text}</span>')
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def _render_metric_group(
+    group_name: str,
+    rows: list[tuple[str, str, Callable[[float], str]]],
+    metrics_list: list[StockMetrics],
+) -> None:
+    st.markdown(f"#### {group_name}")
+    data: dict[str, list[str]] = {"Metric": [r[0] for r in rows]}
+    for m in metrics_list:
+        data[m.ticker] = [_format(getattr(m, attr), fmt) for _, attr, fmt in rows]
+    df = pd.DataFrame(data)
+    st.markdown(
+        df.to_html(index=False, classes="metrics-table", escape=False),
+        unsafe_allow_html=True,
+    )
+
+
+def _render_forward_pe_trend(metrics_list: list[StockMetrics]) -> None:
+    """Render a 5-quarter Forward P/E trend chart, one line per peer.
+
+    Silently skipped if no peer has valuation_history or if peers' period
+    label lists disagree (different fiscal calendars).
+    """
+    histories = [m for m in metrics_list if m.valuation_history]
+    if not histories:
+        return
+
+    reference_periods = [q.period for q in histories[0].valuation_history]
+    if any(
+        [q.period for q in m.valuation_history] != reference_periods for m in histories
+    ):
+        return  # period mismatch — skip rather than render misleading chart
+
+    chart_data: dict[str, list[float | None]] = {}
+    for m in histories:
+        chart_data[m.ticker] = [q.forward_pe for q in m.valuation_history]
+    trend_df = pd.DataFrame(chart_data, index=reference_periods)
+
+    st.markdown("##### Forward P/E trend (current + recent quarters)")
+    st.line_chart(trend_df)
+
+
 def render() -> None:
     nav.progress_header(3)
     if not st.session_state.get(state.SELECTED_PEERS):
@@ -74,57 +267,19 @@ def render() -> None:
         nav.nav_buttons(3, next_enabled=False)
         return
 
-    st.write("Side-by-side comparison of 12 key metrics.")
+    st.write("Side-by-side comparison of fundamentals from Yahoo Key Statistics.")
 
-    # Inject CSS to enlarge the HTML-rendered metrics table so all 13 rows
-    # fit on screen without vertical scrolling and the text is easy to read.
-    st.markdown(
-        """
-        <style>
-        .metrics-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 1.15rem;
-            margin: 0.5rem 0 1rem 0;
-        }
-        .metrics-table th,
-        .metrics-table td {
-            padding: 10px 14px;
-            border-bottom: 1px solid rgba(128, 128, 128, 0.25);
-            text-align: right;
-            white-space: nowrap;
-        }
-        .metrics-table th {
-            background-color: rgba(128, 128, 128, 0.08);
-            font-weight: 600;
-            text-align: center;
-        }
-        .metrics-table th:first-child,
-        .metrics-table td:first-child {
-            text-align: left;
-            font-weight: 600;
-        }
-        .metrics-table tr:hover {
-            background-color: rgba(128, 128, 128, 0.06);
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Inject stylesheet once per render.
+    st.markdown(_STEP3_CSS, unsafe_allow_html=True)
 
-    # Build a dataframe: rows = metrics, columns = tickers
-    data: dict[str, list[str]] = {"Metric": [row[0] for row in _METRIC_ROWS]}
-    for m in metrics_list:
-        data[m.ticker] = [
-            _format(getattr(m, attr), fmt) for _, attr, fmt in _METRIC_ROWS
-        ]
-    df = pd.DataFrame(data)
+    # Source badges — shows which fetch backend produced each ticker's row.
+    st.markdown(_source_badge_html(metrics_list), unsafe_allow_html=True)
 
-    # Render as HTML for full control over font size and row height
-    # (st.dataframe clips rows behind a fixed-height scroll container).
-    st.markdown(
-        df.to_html(index=False, classes="metrics-table", escape=False),
-        unsafe_allow_html=True,
-    )
+    # Grouped metric tables.
+    for group_name, rows in _METRIC_GROUPS:
+        _render_metric_group(group_name, rows, metrics_list)
+
+    # Forward P/E trend chart below the tables.
+    _render_forward_pe_trend(metrics_list)
 
     nav.nav_buttons(3, next_enabled=True)

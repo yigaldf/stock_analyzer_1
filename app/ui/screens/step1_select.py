@@ -10,12 +10,16 @@ def render() -> None:
     nav.progress_header(1)
     st.write("Enter a stock ticker to begin.")
 
-    ticker_input = st.text_input(
-        "Ticker symbol",
-        value=st.session_state.get(state.TICKER) or "",
-        placeholder="e.g. LULU",
-        key="step1_ticker_input",
-    ).upper().strip()
+    ticker_input = (
+        st.text_input(
+            "Ticker symbol",
+            value=st.session_state.get(state.TICKER) or "",
+            placeholder="e.g. LULU",
+            key="step1_ticker_input",
+        )
+        .upper()
+        .strip()
+    )
 
     info = None
     if ticker_input:

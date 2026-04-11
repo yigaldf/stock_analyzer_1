@@ -2,6 +2,7 @@
 
 Run with: uv run streamlit run streamlit_app.py
 """
+
 from __future__ import annotations
 
 from dotenv import load_dotenv
