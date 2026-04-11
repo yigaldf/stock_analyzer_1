@@ -356,17 +356,30 @@ def _fetch_via_httpx(ticker: str) -> str | None:
 def _fetch_via_playwright(ticker: str) -> str | None:
     """Fallback path: render the page in a real Chromium browser.
 
-    Uses playwright.sync_api with a browser-shaped context (realistic
-    User-Agent, viewport, locale) and a pre-seeded Yahoo consent cookie
-    so Yahoo does not redirect a fresh context to its GDPR consent wall.
-    Waits for the stable ``[data-testid="qsp-statistics"]`` anchor on
-    the Valuation Measures section. On any wait failure, still returns
-    ``page.content()`` — the parser handles partial HTML gracefully and
-    it's better to feed it something than to give up entirely.
+    Handles Yahoo's full GDPR consent flow for fresh contexts:
+
+      1. Navigate to the key-statistics URL. Yahoo will typically
+         redirect to ``consent.yahoo.com/v2/collectConsent``.
+      2. On the consent page, click the language-independent
+         ``button[name="agree"]`` (label varies by locale — Hebrew,
+         English, German, etc. — but the name attribute is stable).
+      3. Yahoo then forwards to ``guce.yahoo.com/copyConsent``, which
+         is a JavaScript refresh page with a hidden ``#doneUrl`` input.
+         In headless Chromium the embedded cookie-copy XHRs don't
+         reliably auto-forward, so we read the ``doneUrl`` and
+         navigate there directly — the cookies set by the consent
+         redirect chain come with us via the shared context.
+      4. Wait for the stable ``[data-testid="qsp-statistics"]``
+         anchor on the Valuation Measures section to confirm the page
+         mounted, then dump ``page.content()``.
+
+    If step 4's wait times out, we still return ``page.content()`` so
+    the parser can salvage partial HTML; ``fetch()``'s signal-field
+    guard decides whether the result is usable.
 
     The Chromium binary must be installed once via
-    ``uv run playwright install chromium``. If Playwright or the binary
-    is unavailable, returns None and logs a warning.
+    ``uv run playwright install chromium``. If Playwright or the
+    binary is unavailable, returns None and logs a warning.
     """
     try:
         from playwright.sync_api import Error as PlaywrightError, sync_playwright
@@ -387,55 +400,72 @@ def _fetch_via_playwright(ticker: str) -> str | None:
                     locale="en-US",
                     viewport={"width": 1280, "height": 900},
                 )
-                # Seed a synthesized Yahoo consent cookie so fresh contexts
-                # skip the GDPR consent wall. These values match what a real
-                # browser sets after clicking "Accept all" — Yahoo checks for
-                # the cookie's presence, not its exact payload.
-                context.add_cookies(
-                    [
-                        {
-                            "name": "GUC",
-                            "value": "AQABCAFnT-RnkEIeLgQF",
-                            "domain": ".yahoo.com",
-                            "path": "/",
-                        },
-                        {
-                            "name": "EuConsent-v2",
-                            "value": "CPjVfkAPjVfkAAKA3BENCRCgAAAAAAAAAAAAAAAAAABA",
-                            "domain": ".yahoo.com",
-                            "path": "/",
-                        },
-                        {
-                            "name": "gpp_cookie",
-                            "value": "DBABBg~BVQqAAAAAWA.QA",
-                            "domain": ".yahoo.com",
-                            "path": "/",
-                        },
-                    ]
-                )
                 page = context.new_page()
                 page.goto(
                     url,
                     timeout=_PLAYWRIGHT_TIMEOUT_MS,
                     wait_until="domcontentloaded",
                 )
-                # Best-effort: if Yahoo still shows a consent button,
-                # click it. Ignore if not present.
-                try:
-                    page.get_by_role("button", name="Accept all").click(timeout=2_000)
-                except PlaywrightError:
-                    pass
-                # Wait for the Valuation Measures section to mount.
-                # The data-testid is stable; text selectors are not.
+
+                # Step 2: navigate the consent flow if Yahoo gated us.
+                if "consent.yahoo.com" in page.url:
+                    logger.info(
+                        "yahoo_scraper: %s on consent page, clicking agree",
+                        ticker,
+                    )
+                    try:
+                        with page.expect_navigation(
+                            wait_until="domcontentloaded",
+                            timeout=_PLAYWRIGHT_TIMEOUT_MS,
+                        ):
+                            page.click('button[name="agree"]')
+                    except PlaywrightError as exc:
+                        logger.warning(
+                            "yahoo_scraper: consent-agree click failed for %s: %s",
+                            ticker,
+                            exc,
+                        )
+                        return None
+
+                # Step 3: the copyConsent forwarding page doesn't
+                # reliably auto-redirect in headless mode — read its
+                # doneUrl and navigate directly.
+                if "copyConsent" in page.url:
+                    try:
+                        done_url = page.input_value("input#doneUrl", timeout=5_000)
+                    except PlaywrightError as exc:
+                        logger.warning(
+                            "yahoo_scraper: could not read doneUrl on copyConsent "
+                            "for %s: %s",
+                            ticker,
+                            exc,
+                        )
+                        return None
+                    if not done_url:
+                        logger.warning(
+                            "yahoo_scraper: copyConsent doneUrl was empty for %s",
+                            ticker,
+                        )
+                        return None
+                    page.goto(
+                        done_url,
+                        timeout=_PLAYWRIGHT_TIMEOUT_MS,
+                        wait_until="domcontentloaded",
+                    )
+
+                # Step 4: wait for the valuation measures section to mount.
+                # The data-testid is stable across locales; text selectors
+                # are not.
                 try:
                     page.wait_for_selector(
                         '[data-testid="qsp-statistics"]',
                         timeout=_PLAYWRIGHT_TIMEOUT_MS,
                     )
                 except PlaywrightError as exc:
-                    # Don't bail — dump whatever rendered. The parser
-                    # handles partial HTML and will just return mostly-
-                    # None fields rather than crashing.
+                    # Don't bail — dump whatever rendered and let the
+                    # parser decide. fetch()'s _metrics_has_any_data
+                    # guard will treat zero-signal-field results as a
+                    # parse failure and fall back appropriately.
                     logger.warning(
                         "yahoo_scraper: qsp-statistics selector timed out "
                         "for %s (%s); returning partial page content",
