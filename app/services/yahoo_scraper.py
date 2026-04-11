@@ -252,10 +252,12 @@ def _parse_document(html: str, ticker: str) -> StockMetrics | None:
     flat_fields = _apply_flat_maps(rows)
 
     snapshot, history = _parse_valuation_table(doc)
-    # Snapshot populates the top-level StockMetrics valuation fields.
-    # Flat-map fields win over snapshot on any overlap (none currently,
-    # but defensive).
-    merged = {**snapshot, **flat_fields}
+    # Valuation-grid snapshot is authoritative for valuation fields
+    # (market_cap, forward_pe, peg_ratio, etc.) because it reads the
+    # "Current" column of the historical grid. Flat-map fields cover the
+    # disjoint non-valuation sections. On any future overlap, prefer the
+    # valuation-grid value.
+    merged = {**flat_fields, **snapshot}
 
     return StockMetrics(
         ticker=ticker,

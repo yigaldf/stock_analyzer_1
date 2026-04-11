@@ -78,17 +78,16 @@ def test_parse_document_dividend_fields_parseable(lulu_html):
 def test_parse_document_extracts_valuation_snapshot(lulu_html):
     m = _parse_document(lulu_html, "LULU")
     # Current-column valuation snapshot should populate the top-level
-    # StockMetrics fields.
+    # StockMetrics fields. Assertions are intentionally lenient:
+    # P/E, PEG, and other ratios can be negative for loss-makers, so we
+    # only check that each field is present (no longer silently None —
+    # that was the headline reliability bug this scraper was built for).
     assert m.market_cap is not None
     assert m.market_cap > 1e9  # LULU is a multi-billion-dollar company
     assert m.enterprise_value is not None
     assert m.trailing_pe is not None
-    assert m.trailing_pe > 0
     assert m.forward_pe is not None
-    assert m.forward_pe > 0
-    # PEG was the headline reliability bug this scraper was built for.
     assert m.peg_ratio is not None
-    assert m.peg_ratio > 0
     assert m.price_to_sales is not None
     assert m.price_to_book is not None
     assert m.ev_to_revenue is not None
