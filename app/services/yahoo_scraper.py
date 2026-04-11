@@ -3,6 +3,7 @@
 Public surface: `fetch(ticker)` returns a `StockMetrics` (possibly partial)
 or `None` on hard failure.
 """
+
 from __future__ import annotations
 
 import logging
@@ -364,8 +365,7 @@ def _fetch_via_playwright(ticker: str) -> str | None:
         from playwright.sync_api import Error as PlaywrightError, sync_playwright
     except ImportError:
         logger.error(
-            "yahoo_scraper: playwright package not installed; "
-            "cannot fall back for %s",
+            "yahoo_scraper: playwright package not installed; cannot fall back for %s",
             ticker,
         )
         return None

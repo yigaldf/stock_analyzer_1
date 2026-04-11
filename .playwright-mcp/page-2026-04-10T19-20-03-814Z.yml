@@ -1,0 +1,59 @@
+- dialog "העדפות הפרטיות שלך" [ref=e3]:
+  - generic [ref=e5]:
+    - heading [level=1] [ref=e7]:
+      - banner [ref=e8]:
+        - generic [ref=e11]:
+          - generic [ref=e12]:
+            - heading "guce" [level=1] [ref=e13]
+            - link "yahoo logo" [ref=e14] [cursor=pointer]:
+              - /url: https://www.yahoo.com/
+              - img [ref=e15]
+              - text: guce
+          - toolbar
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - paragraph [ref=e19]: הפרטיות שלכם חשובה לנו
+          - paragraph [ref=e20]:
+            - text: Yahoo שייך ל
+            - button "משפחת המותגים של Yahoo" [ref=e21]
+            - text: .
+          - generic [ref=e22]:
+            - text: בעת שימושך באתרים ובאפליקציות שלנו אנו משתמשים
+            - button "קובצי Cookie" [ref=e23]: בקוקיות
+            - text: "כדי:"
+          - list [ref=e24]:
+            - listitem [ref=e25]: לספק לך את האתרים והאפליקציות שלנו
+            - listitem [ref=e26]: לאמת משתמשים, ליישם אמצעי אבטחה, למנוע דואר זבל ושימוש לרעה
+            - listitem [ref=e27]: "${HOVER_MEASURE}למדוד${HOVER_END} את השימוש שלך באתרים ובאפליקציות שלנו"
+        - generic [ref=e28]:
+          - generic [ref=e29]: העדפות הפרטיות שלך
+          - generic [ref=e30]:
+            - text: לחיצה על '
+            - strong [ref=e31]: לקבל הכול
+            - text: "', תוביל לכך שאנחנו"
+            - link "והשותפים שלנו" [ref=e32] [cursor=pointer]:
+              - /url: /v2/partners-list?sessionId=3_cc-session_004b30a4-d162-46e8-ad4f-1fa98afcba67
+            - text: ", כולל ה- 251 הפועלים במסגרת השקיפות וההסכמה של ה- IAB, נאחסן ו/או ניגש למידע במכשיר (במילים אחרות, נשתמש בקובצי Cookie). כמו כן, נשתמש בנתוני איכון מדויקים ובנתונים אישיים אחרים כגון"
+            - button "פרטי זיהוי טכניים" [ref=e33]
+            - text: ונתוני גלישה וחיפוש לצורך ניתוח נתונים, פרסום ותוכן מותאמים אישית, מדידת פרסום ותוכן, וכן מחקר קהלים ופיתוח שירותים.
+          - paragraph [ref=e34]:
+            - text: אם אינך רוצה שאנו והשותפים שלנו נשתמש בקוקיות ובנתונים אישיים למטרות נוספות אלה, עליך ללחוץ על ‚
+            - strong [ref=e35]: לדחות הכול
+            - text: ‘.
+          - paragraph [ref=e36]:
+            - text: אם ברצונך להתאים אישית את ההעדפות שלך, עליך ללחוץ על ‚
+            - strong [ref=e37]: ניהול הגדרות הפרטיות
+            - text: ‘.
+          - paragraph [ref=e38]:
+            - text: באפשרותך לבטל את הסכמתך או לשנות את ההעדפות שלך בכל עת על-ידי לחיצה על הקישורים 'הגדרות פרטיות וקוקיות' או 'לוח המחוונים של הפרטיות' באתרים ובאפליקציות שלנו. כדי לקבל מידע נוסף על השימוש שאנחנו עושים בנתונים אישיים שלך, אפשר לעיין ב
+            - link "מדיניות הפרטיות" [ref=e39] [cursor=pointer]:
+              - /url: /redirect?to=https%3A%2F%2Flegal.yahoo.com%2Fie%2Fhe%2Fyahoo%2Fprivacy%2Findex.html&brandDomain=&brandId=yahoo&tos=eu&step=&sessionId=3_cc-session_004b30a4-d162-46e8-ad4f-1fa98afcba67&userType=NON_REG
+            - text: וב
+            - link "מדיניות בנושא קוקיות" [ref=e40] [cursor=pointer]:
+              - /url: /redirect?to=https%3A%2F%2Flegal.yahoo.com%2Fie%2Fhe%2Fyahoo%2Fprivacy%2Fcookies%2Findex.html&brandDomain=&brandId=yahoo&tos=eu&step=&sessionId=3_cc-session_004b30a4-d162-46e8-ad4f-1fa98afcba67&userType=NON_REG
+            - text: שלנו.
+      - generic [ref=e41]:
+        - button "לקבל הכול" [ref=e42] [cursor=pointer]
+        - button "לדחות הכול" [ref=e43] [cursor=pointer]
+        - button "ניהול הגדרות הפרטיות" [ref=e44] [cursor=pointer]

@@ -1,4 +1,10 @@
-from app.models.schemas import CategoryScore, QuarterlyValuation, StockInfo, StockMetrics, StockRanking
+from app.models.schemas import (
+    CategoryScore,
+    QuarterlyValuation,
+    StockInfo,
+    StockMetrics,
+    StockRanking,
+)
 
 
 def test_stock_info_roundtrip():

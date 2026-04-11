@@ -11,46 +11,86 @@ from app.ui import nav, state
 
 # Each group is (section label, list of (display name, attr, formatter) rows).
 _METRIC_GROUPS: list[tuple[str, list[tuple[str, str, Callable[[float], str]]]]] = [
-    ("Valuation", [
-        ("Forward P/E",    "forward_pe",     lambda v: f"{v:.1f}x"),
-        ("Trailing P/E",   "trailing_pe",    lambda v: f"{v:.1f}x"),
-        ("PEG (5Y)",       "peg_ratio",      lambda v: f"{v:.2f}"),
-        ("Price/Sales",    "price_to_sales", lambda v: f"{v:.1f}"),
-        ("Price/Book",     "price_to_book",  lambda v: f"{v:.1f}"),
-        ("EV/EBITDA",      "ev_to_ebitda",   lambda v: f"{v:.1f}"),
-        ("EV/Revenue",     "ev_to_revenue",  lambda v: f"{v:.1f}"),
-    ]),
-    ("Profitability", [
-        ("Operating Margin", "operating_margin", lambda v: f"{v*100:.1f}%"),
-        ("Profit Margin",    "profit_margin",    lambda v: f"{v*100:.1f}%"),
-    ]),
-    ("Capital Efficiency", [
-        ("ROE", "roe", lambda v: f"{v*100:.1f}%"),
-        ("ROA", "roa", lambda v: f"{v*100:.1f}%"),
-    ]),
-    ("Growth", [
-        ("Revenue Growth (yoy)",  "revenue_growth_yoy",  lambda v: f"{v*100:.1f}%"),
-        ("Earnings Growth (yoy)", "earnings_growth_yoy", lambda v: f"{v*100:.1f}%"),
-    ]),
-    ("Financial Health", [
-        ("Debt/Equity",   "debt_to_equity", lambda v: f"{v*100:.1f}%"),
-        ("Current Ratio", "current_ratio",  lambda v: f"{v:.2f}"),
-        ("Total Cash",    "total_cash",     lambda v: f"${v/1e9:.2f}B"),
-        ("Total Debt",    "total_debt",     lambda v: f"${v/1e9:.2f}B"),
-    ]),
-    ("Cash Flow", [
-        ("Operating Cash Flow",    "operating_cash_flow",    lambda v: f"${v/1e9:.2f}B"),
-        ("Levered Free Cash Flow", "levered_free_cash_flow", lambda v: f"${v/1e9:.2f}B"),
-    ]),
-    ("Market Context", [
-        ("Beta (5Y)",        "beta",             lambda v: f"{v:.2f}"),
-        ("Market Cap",       "market_cap",       lambda v: f"${v/1e9:.2f}B"),
-        ("Enterprise Value", "enterprise_value", lambda v: f"${v/1e9:.2f}B"),
-    ]),
-    ("Dividend", [
-        ("Forward Dividend Yield", "forward_dividend_yield", lambda v: f"{v*100:.2f}%"),
-        ("Payout Ratio",           "payout_ratio",           lambda v: f"{v*100:.1f}%"),
-    ]),
+    (
+        "Valuation",
+        [
+            ("Forward P/E", "forward_pe", lambda v: f"{v:.1f}x"),
+            ("Trailing P/E", "trailing_pe", lambda v: f"{v:.1f}x"),
+            ("PEG (5Y)", "peg_ratio", lambda v: f"{v:.2f}"),
+            ("Price/Sales", "price_to_sales", lambda v: f"{v:.1f}"),
+            ("Price/Book", "price_to_book", lambda v: f"{v:.1f}"),
+            ("EV/EBITDA", "ev_to_ebitda", lambda v: f"{v:.1f}"),
+            ("EV/Revenue", "ev_to_revenue", lambda v: f"{v:.1f}"),
+        ],
+    ),
+    (
+        "Profitability",
+        [
+            ("Operating Margin", "operating_margin", lambda v: f"{v * 100:.1f}%"),
+            ("Profit Margin", "profit_margin", lambda v: f"{v * 100:.1f}%"),
+        ],
+    ),
+    (
+        "Capital Efficiency",
+        [
+            ("ROE", "roe", lambda v: f"{v * 100:.1f}%"),
+            ("ROA", "roa", lambda v: f"{v * 100:.1f}%"),
+        ],
+    ),
+    (
+        "Growth",
+        [
+            ("Revenue Growth (yoy)", "revenue_growth_yoy", lambda v: f"{v * 100:.1f}%"),
+            (
+                "Earnings Growth (yoy)",
+                "earnings_growth_yoy",
+                lambda v: f"{v * 100:.1f}%",
+            ),
+        ],
+    ),
+    (
+        "Financial Health",
+        [
+            ("Debt/Equity", "debt_to_equity", lambda v: f"{v * 100:.1f}%"),
+            ("Current Ratio", "current_ratio", lambda v: f"{v:.2f}"),
+            ("Total Cash", "total_cash", lambda v: f"${v / 1e9:.2f}B"),
+            ("Total Debt", "total_debt", lambda v: f"${v / 1e9:.2f}B"),
+        ],
+    ),
+    (
+        "Cash Flow",
+        [
+            (
+                "Operating Cash Flow",
+                "operating_cash_flow",
+                lambda v: f"${v / 1e9:.2f}B",
+            ),
+            (
+                "Levered Free Cash Flow",
+                "levered_free_cash_flow",
+                lambda v: f"${v / 1e9:.2f}B",
+            ),
+        ],
+    ),
+    (
+        "Market Context",
+        [
+            ("Beta (5Y)", "beta", lambda v: f"{v:.2f}"),
+            ("Market Cap", "market_cap", lambda v: f"${v / 1e9:.2f}B"),
+            ("Enterprise Value", "enterprise_value", lambda v: f"${v / 1e9:.2f}B"),
+        ],
+    ),
+    (
+        "Dividend",
+        [
+            (
+                "Forward Dividend Yield",
+                "forward_dividend_yield",
+                lambda v: f"{v * 100:.2f}%",
+            ),
+            ("Payout Ratio", "payout_ratio", lambda v: f"{v * 100:.1f}%"),
+        ],
+    ),
 ]
 
 
@@ -196,8 +236,7 @@ def _render_forward_pe_trend(metrics_list: list[StockMetrics]) -> None:
 
     reference_periods = [q.period for q in histories[0].valuation_history]
     if any(
-        [q.period for q in m.valuation_history] != reference_periods
-        for m in histories
+        [q.period for q in m.valuation_history] != reference_periods for m in histories
     ):
         return  # period mismatch — skip rather than render misleading chart
 

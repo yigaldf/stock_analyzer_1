@@ -4,18 +4,22 @@ import pandas as pd
 import streamlit as st
 
 from app.agents.recommendation_agent import generate_recommendation
-from app.services.scoring_service import CATEGORIES, DEFAULT_WEIGHTS, compute_weighted_scores
+from app.services.scoring_service import (
+    CATEGORIES,
+    DEFAULT_WEIGHTS,
+    compute_weighted_scores,
+)
 from app.ui import nav, state
 
 _CATEGORY_LABELS = {
-    "valuation":          "Valuation",
-    "growth":             "Growth",
-    "profitability":      "Profitability",
+    "valuation": "Valuation",
+    "growth": "Growth",
+    "profitability": "Profitability",
     "capital_efficiency": "Capital Efficiency",
-    "health":             "Financial Health",
-    "cash_quality":       "Cash Quality",
-    "valuation_trend":    "Valuation Trend",
-    "dividend":           "Dividend",
+    "health": "Financial Health",
+    "cash_quality": "Cash Quality",
+    "valuation_trend": "Valuation Trend",
+    "dividend": "Dividend",
 }
 
 
@@ -52,7 +56,7 @@ def render() -> None:
     total = sum(weights.values())
     if abs(total - 1.0) > 0.001:
         st.warning(
-            f"Weights total {total*100:.0f}% — adjust to 100% for an exact balance. "
+            f"Weights total {total * 100:.0f}% — adjust to 100% for an exact balance. "
             "Ranking uses normalized weights."
         )
 
@@ -66,7 +70,11 @@ def render() -> None:
     # Ranking table
     rows = []
     for r in rankings:
-        row = {"Rank": f"#{r.rank}", "Ticker": r.ticker, "Weighted Score": f"{r.weighted_score:.2f}"}
+        row = {
+            "Rank": f"#{r.rank}",
+            "Ticker": r.ticker,
+            "Weighted Score": f"{r.weighted_score:.2f}",
+        }
         for cs in r.category_scores:
             row[_CATEGORY_LABELS[cs.category]] = f"{cs.score}/5"
         rows.append(row)

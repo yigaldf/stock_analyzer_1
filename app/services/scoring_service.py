@@ -15,26 +15,30 @@ CATEGORIES = [
 ]
 
 DEFAULT_WEIGHTS: dict[str, float] = {
-    "valuation":          0.18,
-    "growth":             0.18,
-    "profitability":      0.14,
+    "valuation": 0.18,
+    "growth": 0.18,
+    "profitability": 0.14,
     "capital_efficiency": 0.12,
-    "health":             0.12,
-    "cash_quality":       0.12,
-    "valuation_trend":    0.08,
-    "dividend":           0.06,
+    "health": 0.12,
+    "cash_quality": 0.12,
+    "valuation_trend": 0.08,
+    "dividend": 0.06,
 }
 
 # Sub-metrics for each composite category: list of (StockMetrics field, direction).
 # Direction: "lower" means lower raw value = better score.
 # `cash_quality` and `valuation_trend` are derived metrics handled separately.
 _CATEGORY_SUBMETRICS: dict[str, list[tuple[str, str]]] = {
-    "valuation":          [("forward_pe", "lower"), ("peg_ratio", "lower"), ("ev_to_ebitda", "lower")],
-    "growth":             [("revenue_growth_yoy", "higher"), ("earnings_growth_yoy", "higher")],
-    "profitability":      [("operating_margin", "higher"), ("profit_margin", "higher")],
+    "valuation": [
+        ("forward_pe", "lower"),
+        ("peg_ratio", "lower"),
+        ("ev_to_ebitda", "lower"),
+    ],
+    "growth": [("revenue_growth_yoy", "higher"), ("earnings_growth_yoy", "higher")],
+    "profitability": [("operating_margin", "higher"), ("profit_margin", "higher")],
     "capital_efficiency": [("roe", "higher"), ("roa", "higher")],
-    "health":             [("debt_to_equity", "lower"), ("current_ratio", "higher")],
-    "dividend":           [("forward_dividend_yield", "higher")],
+    "health": [("debt_to_equity", "lower"), ("current_ratio", "higher")],
+    "dividend": [("forward_dividend_yield", "higher")],
 }
 
 
@@ -44,15 +48,28 @@ def _format_value(field: str, raw: float | None) -> str:
         return "—"
     # Ratios and multiples — plain decimal
     if field in (
-        "forward_pe", "trailing_pe", "ev_to_ebitda", "ev_to_revenue",
-        "price_to_sales", "price_to_book", "peg_ratio", "current_ratio", "beta",
+        "forward_pe",
+        "trailing_pe",
+        "ev_to_ebitda",
+        "ev_to_revenue",
+        "price_to_sales",
+        "price_to_book",
+        "peg_ratio",
+        "current_ratio",
+        "beta",
     ):
         return f"{raw:.2f}"
     # Percentage-form decimals (stored as 0.1422 meaning 14.22%)
     if field in (
-        "debt_to_equity", "operating_margin", "profit_margin", "roe", "roa",
-        "revenue_growth_yoy", "earnings_growth_yoy",
-        "forward_dividend_yield", "payout_ratio",
+        "debt_to_equity",
+        "operating_margin",
+        "profit_margin",
+        "roe",
+        "roa",
+        "revenue_growth_yoy",
+        "earnings_growth_yoy",
+        "forward_dividend_yield",
+        "payout_ratio",
     ):
         return f"{raw * 100:.1f}%"
     return f"{raw}"
@@ -84,14 +101,19 @@ def score_category_single(
     if not values:
         for stock in stocks:
             result[stock.ticker] = CategoryScore(
-                category=field, score=3, raw_value=None, display="—",
+                category=field,
+                score=3,
+                raw_value=None,
+                display="—",
             )
         return result
 
     if len(values) == 1:
         only_ticker, only_raw = values[0]
         result[only_ticker] = CategoryScore(
-            category=field, score=5, raw_value=only_raw,
+            category=field,
+            score=5,
+            raw_value=only_raw,
             display=_format_value(field, only_raw),
         )
     else:
@@ -102,16 +124,23 @@ def score_category_single(
             groups.append((raw_val, [t for t, _ in group_iter]))
         num_groups = len(groups)
         for group_idx, (raw_val, tickers) in enumerate(groups):
-            score = 5 if num_groups == 1 else round(5 - (4 * group_idx / (num_groups - 1)))
+            score = (
+                5 if num_groups == 1 else round(5 - (4 * group_idx / (num_groups - 1)))
+            )
             for ticker in tickers:
                 result[ticker] = CategoryScore(
-                    category=field, score=score, raw_value=raw_val,
+                    category=field,
+                    score=score,
+                    raw_value=raw_val,
                     display=_format_value(field, raw_val),
                 )
 
     for ticker in missing:
         result[ticker] = CategoryScore(
-            category=field, score=3, raw_value=None, display="—",
+            category=field,
+            score=3,
+            raw_value=None,
+            display="—",
         )
 
     return result
@@ -176,7 +205,10 @@ def _score_cash_quality(
     if not valid:
         for s in stocks:
             result[s.ticker] = CategoryScore(
-                category="cash_quality", score=3, raw_value=None, display="—",
+                category="cash_quality",
+                score=3,
+                raw_value=None,
+                display="—",
             )
         return result
 
@@ -189,12 +221,17 @@ def _score_cash_quality(
         score = 5 if num_groups == 1 else round(5 - (4 * idx / (num_groups - 1)))
         for t in tickers:
             result[t] = CategoryScore(
-                category="cash_quality", score=score, raw_value=raw,
+                category="cash_quality",
+                score=score,
+                raw_value=raw,
                 display=f"FCF yield {raw * 100:.1f}%",
             )
     for t in missing:
         result[t] = CategoryScore(
-            category="cash_quality", score=3, raw_value=None, display="—",
+            category="cash_quality",
+            score=3,
+            raw_value=None,
+            display="—",
         )
     return result
 
@@ -214,7 +251,8 @@ def _score_valuation_trend(
             ratios.append((s.ticker, None))
             continue
         historical = [
-            q.forward_pe for q in s.valuation_history
+            q.forward_pe
+            for q in s.valuation_history
             if q.period != "Current" and q.forward_pe is not None
         ]
         if not historical:
@@ -233,7 +271,10 @@ def _score_valuation_trend(
     if not valid:
         for s in stocks:
             result[s.ticker] = CategoryScore(
-                category="valuation_trend", score=3, raw_value=None, display="—",
+                category="valuation_trend",
+                score=3,
+                raw_value=None,
+                display="—",
             )
         return result
 
@@ -246,12 +287,17 @@ def _score_valuation_trend(
         score = 5 if num_groups == 1 else round(5 - (4 * idx / (num_groups - 1)))
         for t in tickers:
             result[t] = CategoryScore(
-                category="valuation_trend", score=score, raw_value=raw,
+                category="valuation_trend",
+                score=score,
+                raw_value=raw,
                 display=f"Fwd P/E {raw:.2f}x own avg",
             )
     for t in missing:
         result[t] = CategoryScore(
-            category="valuation_trend", score=3, raw_value=None, display="—",
+            category="valuation_trend",
+            score=3,
+            raw_value=None,
+            display="—",
         )
     return result
 

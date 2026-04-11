@@ -17,6 +17,7 @@ class QuarterlyValuation(BaseModel):
     `period` is the column header from the Yahoo page: "Current" or a date
     like "12/31/2025".
     """
+
     period: str
     market_cap: float | None = None
     enterprise_value: float | None = None

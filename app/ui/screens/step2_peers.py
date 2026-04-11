@@ -41,7 +41,9 @@ def render() -> None:
             "Couldn't suggest competitors automatically. "
             "Enter them manually below (comma-separated)."
         )
-        manual = st.text_input("Tickers", key="step2_manual", placeholder="NKE, ADDYY, UA")
+        manual = st.text_input(
+            "Tickers", key="step2_manual", placeholder="NKE, ADDYY, UA"
+        )
         if manual:
             tickers = [t.strip().upper() for t in manual.split(",") if t.strip()]
             with st.spinner("Validating tickers..."):
@@ -80,9 +82,7 @@ def render() -> None:
                 ]
                 # Skip tickers already in the list or the source stock itself
                 new_extras = [
-                    t
-                    for t in raw_extras
-                    if t not in candidates and t != info.ticker
+                    t for t in raw_extras if t not in candidates and t != info.ticker
                 ]
                 if new_extras:
                     with st.spinner("Validating..."):

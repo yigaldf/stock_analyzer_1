@@ -2,6 +2,7 @@
 
 Centralizing this makes screens thin and testable (you can mock st.session_state).
 """
+
 from __future__ import annotations
 
 import streamlit as st

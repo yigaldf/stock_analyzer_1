@@ -4,6 +4,7 @@
 - valuation_trend: current forward_pe / mean historical forward_pe (excluding
   the "Current" entry), lower better
 """
+
 from app.models.schemas import QuarterlyValuation, StockMetrics
 from app.services.scoring_service import score_category
 
@@ -21,8 +22,8 @@ def _m(ticker: str, **kwargs) -> StockMetrics:
 def test_cash_quality_higher_fcf_yield_wins():
     stocks = [
         _m("A", levered_free_cash_flow=2_000_000_000, market_cap=10_000_000_000),  # 20%
-        _m("B", levered_free_cash_flow=500_000_000,   market_cap=10_000_000_000),  # 5%
-        _m("C", levered_free_cash_flow=100_000_000,   market_cap=10_000_000_000),  # 1%
+        _m("B", levered_free_cash_flow=500_000_000, market_cap=10_000_000_000),  # 5%
+        _m("C", levered_free_cash_flow=100_000_000, market_cap=10_000_000_000),  # 1%
     ]
     scores = score_category("cash_quality", stocks)
     assert scores["A"].score == 5
@@ -35,7 +36,7 @@ def test_cash_quality_higher_fcf_yield_wins():
 def test_cash_quality_missing_fcf_is_neutral():
     stocks = [
         _m("A", levered_free_cash_flow=1_000_000_000, market_cap=10_000_000_000),
-        _m("B", levered_free_cash_flow=None,          market_cap=10_000_000_000),
+        _m("B", levered_free_cash_flow=None, market_cap=10_000_000_000),
     ]
     scores = score_category("cash_quality", stocks)
     assert scores["A"].score == 5  # only peer with valid yield
