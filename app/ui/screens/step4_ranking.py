@@ -8,12 +8,14 @@ from app.services.scoring_service import CATEGORIES, DEFAULT_WEIGHTS, compute_we
 from app.ui import nav, state
 
 _CATEGORY_LABELS = {
-    "valuation": "Valuation (fwd P/E)",
-    "growth": "Revenue Growth",
-    "profitability": "Profitability (op margin)",
-    "roic": "ROIC (ROE)",
-    "health": "Financial Health (D/E)",
-    "dividend": "Dividend Yield",
+    "valuation":          "Valuation",
+    "growth":             "Growth",
+    "profitability":      "Profitability",
+    "capital_efficiency": "Capital Efficiency",
+    "health":             "Financial Health",
+    "cash_quality":       "Cash Quality",
+    "valuation_trend":    "Valuation Trend",
+    "dividend":           "Dividend",
 }
 
 
