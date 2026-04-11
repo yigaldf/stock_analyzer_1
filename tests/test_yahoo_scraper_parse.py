@@ -16,3 +16,60 @@ def test_parse_document_returns_metrics_with_ticker(lulu_html):
     metrics = _parse_document(lulu_html, "LULU")
     assert metrics is not None
     assert metrics.ticker == "LULU"
+
+
+def test_parse_document_extracts_profitability(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    # Profit margin and operating margin are both expressed as decimals
+    # (0.1422 means 14.22%). We don't pin exact values since the fixture
+    # can be refreshed — just require the parser extracted *something*
+    # numeric that survives the percent conversion.
+    assert m.profit_margin is not None
+    assert -1.0 < m.profit_margin < 1.0
+    assert m.operating_margin is not None
+    assert -1.0 < m.operating_margin < 1.0
+
+
+def test_parse_document_extracts_management(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    assert m.roe is not None
+    assert m.roa is not None
+
+
+def test_parse_document_extracts_income_statement(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    assert m.revenue_growth_yoy is not None
+    # Earnings growth may be negative for some tickers; just require non-None.
+    assert m.earnings_growth_yoy is not None
+
+
+def test_parse_document_extracts_balance_sheet(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    assert m.debt_to_equity is not None
+    assert m.current_ratio is not None
+    assert m.total_cash is not None
+    assert m.total_debt is not None
+    # Raw dollar magnitudes should be in the billions for LULU.
+    assert m.total_cash > 1e8
+    assert m.total_debt > 1e8
+
+
+def test_parse_document_extracts_cash_flow(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    assert m.operating_cash_flow is not None
+    assert m.levered_free_cash_flow is not None
+
+
+def test_parse_document_extracts_beta(lulu_html):
+    m = _parse_document(lulu_html, "LULU")
+    assert m.beta is not None
+    # Beta is typically between -2 and 5 for real companies.
+    assert -2 < m.beta < 5
+
+
+def test_parse_document_dividend_fields_parseable(lulu_html):
+    # LULU currently pays no dividend, so these may be None. The test only
+    # verifies the parser didn't crash and the attributes exist.
+    m = _parse_document(lulu_html, "LULU")
+    assert hasattr(m, "forward_dividend_yield")
+    assert hasattr(m, "payout_ratio")
