@@ -102,3 +102,43 @@ def test_fetch_propagates_when_playwright_raises_unguarded(
     monkeypatch.setattr(yahoo_scraper, "_fetch_via_playwright", raising_playwright)
     with pytest.raises(RuntimeError, match="chromium crashed"):
         fetch("LULU")
+
+
+def test_fetch_falls_back_when_httpx_html_has_no_signal_fields(
+    httpx_mock: HTTPXMock, monkeypatch
+):
+    """If httpx returns a 200 with parseable HTML but the parser
+    extracts zero signal fields (e.g. a Yahoo skeleton shell that
+    rendered before JS populated content), fetch() should treat it as
+    a parse failure and fall back to Playwright rather than returning
+    an all-None StockMetrics tagged source='httpx'."""
+    empty_page = "<html><body><div>Loading...</div></body></html>"
+    httpx_mock.add_response(
+        url=_URL_TEMPLATE.format(ticker="LULU"),
+        text=empty_page * 200,  # bloat above stub size threshold
+        status_code=200,
+    )
+    monkeypatch.setattr(yahoo_scraper, "_fetch_via_playwright", lambda ticker: FIXTURE)
+    metrics = fetch("LULU")
+    assert metrics is not None
+    assert metrics.source == "playwright"
+    assert metrics.peg_ratio is not None
+
+
+def test_fetch_returns_none_when_both_backends_return_empty_html(
+    httpx_mock: HTTPXMock, monkeypatch
+):
+    """Defense in depth: if httpx AND Playwright both return HTML
+    that parses to zero signal fields, fetch() returns None so the UI
+    shows 'Couldn't fetch metrics' rather than a row of dashes with a
+    misleading source badge."""
+    empty_page = "<html><body><div>Loading...</div></body></html>"
+    httpx_mock.add_response(
+        url=_URL_TEMPLATE.format(ticker="LULU"),
+        text=empty_page * 200,
+        status_code=200,
+    )
+    monkeypatch.setattr(
+        yahoo_scraper, "_fetch_via_playwright", lambda ticker: empty_page
+    )
+    assert fetch("LULU") is None

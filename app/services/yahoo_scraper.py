@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Literal
 
 import httpx
 from selectolax.parser import HTMLParser
@@ -357,9 +356,17 @@ def _fetch_via_httpx(ticker: str) -> str | None:
 def _fetch_via_playwright(ticker: str) -> str | None:
     """Fallback path: render the page in a real Chromium browser.
 
-    Uses playwright.sync_api. The browser binary must be installed once via
-    `uv run playwright install chromium`. If Playwright or the binary is
-    unavailable, returns None and logs a warning.
+    Uses playwright.sync_api with a browser-shaped context (realistic
+    User-Agent, viewport, locale) and a pre-seeded Yahoo consent cookie
+    so Yahoo does not redirect a fresh context to its GDPR consent wall.
+    Waits for the stable ``[data-testid="qsp-statistics"]`` anchor on
+    the Valuation Measures section. On any wait failure, still returns
+    ``page.content()`` — the parser handles partial HTML gracefully and
+    it's better to feed it something than to give up entirely.
+
+    The Chromium binary must be installed once via
+    ``uv run playwright install chromium``. If Playwright or the binary
+    is unavailable, returns None and logs a warning.
     """
     try:
         from playwright.sync_api import Error as PlaywrightError, sync_playwright
@@ -375,15 +382,69 @@ def _fetch_via_playwright(ticker: str) -> str | None:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
-                context = browser.new_context()
-                page = context.new_page()
-                page.goto(url, timeout=_PLAYWRIGHT_TIMEOUT_MS)
-                # Wait until the Valuation Measures table has rendered.
-                page.wait_for_selector(
-                    "text=Forward P/E", timeout=_PLAYWRIGHT_TIMEOUT_MS
+                context = browser.new_context(
+                    user_agent=_HTTPX_HEADERS["User-Agent"],
+                    locale="en-US",
+                    viewport={"width": 1280, "height": 900},
                 )
+                # Seed a synthesized Yahoo consent cookie so fresh contexts
+                # skip the GDPR consent wall. These values match what a real
+                # browser sets after clicking "Accept all" — Yahoo checks for
+                # the cookie's presence, not its exact payload.
+                context.add_cookies(
+                    [
+                        {
+                            "name": "GUC",
+                            "value": "AQABCAFnT-RnkEIeLgQF",
+                            "domain": ".yahoo.com",
+                            "path": "/",
+                        },
+                        {
+                            "name": "EuConsent-v2",
+                            "value": "CPjVfkAPjVfkAAKA3BENCRCgAAAAAAAAAAAAAAAAAABA",
+                            "domain": ".yahoo.com",
+                            "path": "/",
+                        },
+                        {
+                            "name": "gpp_cookie",
+                            "value": "DBABBg~BVQqAAAAAWA.QA",
+                            "domain": ".yahoo.com",
+                            "path": "/",
+                        },
+                    ]
+                )
+                page = context.new_page()
+                page.goto(
+                    url,
+                    timeout=_PLAYWRIGHT_TIMEOUT_MS,
+                    wait_until="domcontentloaded",
+                )
+                # Best-effort: if Yahoo still shows a consent button,
+                # click it. Ignore if not present.
+                try:
+                    page.get_by_role("button", name="Accept all").click(timeout=2_000)
+                except PlaywrightError:
+                    pass
+                # Wait for the Valuation Measures section to mount.
+                # The data-testid is stable; text selectors are not.
+                try:
+                    page.wait_for_selector(
+                        '[data-testid="qsp-statistics"]',
+                        timeout=_PLAYWRIGHT_TIMEOUT_MS,
+                    )
+                except PlaywrightError as exc:
+                    # Don't bail — dump whatever rendered. The parser
+                    # handles partial HTML and will just return mostly-
+                    # None fields rather than crashing.
+                    logger.warning(
+                        "yahoo_scraper: qsp-statistics selector timed out "
+                        "for %s (%s); returning partial page content",
+                        ticker,
+                        exc,
+                    )
                 html = page.content()
             finally:
+                context.close()
                 browser.close()
         return html
     except PlaywrightError as exc:
@@ -396,40 +457,74 @@ def _fetch_via_playwright(ticker: str) -> str | None:
         return None
 
 
+def _metrics_has_any_data(m: StockMetrics) -> bool:
+    """Return True if parsed metrics contain at least one non-None signal
+    field. A parser that runs against a mostly-empty HTML page produces a
+    StockMetrics where every field is None — indistinguishable from
+    "successful fetch, no data" at the UI layer. Treat it as a parse
+    failure so fetch() can fall back or warn."""
+    signal_fields = (
+        "forward_pe",
+        "peg_ratio",
+        "market_cap",
+        "profit_margin",
+        "operating_margin",
+        "roe",
+        "total_cash",
+        "beta",
+    )
+    return any(getattr(m, f) is not None for f in signal_fields) or bool(
+        m.valuation_history
+    )
+
+
 def fetch(ticker: str) -> StockMetrics | None:
     """Fetch and parse Yahoo Key Statistics for one ticker.
 
     Tiered strategy:
-      1. Try httpx (fast path). On success, parse and tag source='httpx'.
-      2. On any httpx failure (network, non-200, anti-bot stub, tiny response),
-         fall back to Playwright (real Chromium). On success, parse and tag
-         source='playwright'.
-      3. If both backends fail, return None.
+      1. Try httpx (fast path). On parseable response, tag source='httpx'.
+      2. If httpx fails OR the parsed result has zero signal fields, fall
+         back to Playwright (real Chromium) and tag source='playwright'.
+      3. If both backends produce empty/unparseable HTML, return None so
+         the UI shows "Couldn't fetch metrics for X".
 
-    The underlying _parse_document is agnostic to which backend produced
-    the HTML — both paths hand it the same Yahoo markup.
+    Caching is intentionally left to the UI layer (Streamlit session
+    cache) to keep this module framework-agnostic.
     """
-    # Primary
+
+    def _try_parse(html: str, source_label: str) -> StockMetrics | None:
+        try:
+            metrics = _parse_document(html, ticker)
+        except Exception as exc:
+            logger.warning(
+                "yahoo_scraper: parse failed for %s via %s: %s",
+                ticker,
+                source_label,
+                exc,
+            )
+            return None
+        if metrics is None:
+            return None
+        if not _metrics_has_any_data(metrics):
+            logger.warning(
+                "yahoo_scraper: %s returned parseable HTML for %s but no "
+                "signal fields extracted; treating as parse failure",
+                source_label,
+                ticker,
+            )
+            return None
+        metrics.source = source_label  # type: ignore[assignment]
+        return metrics
+
+    # Primary: httpx
     html = _fetch_via_httpx(ticker)
-    source: Literal["httpx", "playwright"] | None = "httpx" if html else None
+    if html is not None:
+        metrics = _try_parse(html, "httpx")
+        if metrics is not None:
+            return metrics
 
-    # Fallback
+    # Fallback: Playwright
+    html = _fetch_via_playwright(ticker)
     if html is None:
-        html = _fetch_via_playwright(ticker)
-        if html:
-            source = "playwright"
-
-    if html is None:
         return None
-
-    try:
-        metrics = _parse_document(html, ticker)
-    except Exception as exc:
-        logger.warning("yahoo_scraper: parse failed for %s: %s", ticker, exc)
-        return None
-
-    if metrics is None:
-        return None
-
-    metrics.source = source
-    return metrics
+    return _try_parse(html, "playwright")
