@@ -5,6 +5,7 @@ from app.services.stock_service import (
     get_stock_metrics,
     validate_tickers,
 )
+from app.models.schemas import QuarterlyValuation, StockMetrics
 
 
 @patch("app.services.stock_service.yf.Ticker")
@@ -55,43 +56,30 @@ def test_get_stock_info_on_exception_returns_none(mock_ticker):
     assert get_stock_info("LULU") is None
 
 
-@patch("app.services.stock_service.yf.Ticker")
-def test_get_stock_metrics_populates_fields(mock_ticker):
-    mock_ticker.return_value.info = {
-        "longName": "Lululemon",
-        "forwardPE": 13.0,
-        "trailingPE": 18.5,
-        "pegRatio": 1.2,
-        "priceToSalesTrailing12Months": 5.1,
-        "marketCap": 58000000000,
-        "profitMargins": 0.15,
-        "operatingMargins": 0.199,
-        "revenueGrowth": 0.05,
-        "earningsGrowth": 0.08,
-        "returnOnEquity": 0.31,
-        "debtToEquity": 36.0,  # yfinance returns raw percent
-        "beta": 1.4,
-        "dividendYield": None,
-    }
+@patch("app.services.stock_service.yahoo_scraper.fetch")
+def test_get_stock_metrics_delegates_to_scraper(mock_fetch):
+    mock_fetch.return_value = StockMetrics(
+        ticker="LULU",
+        forward_pe=13.0,
+        peg_ratio=0.90,
+        source="httpx",
+        valuation_history=[
+            QuarterlyValuation(period="Current", forward_pe=13.0),
+            QuarterlyValuation(period="12/31/2025", forward_pe=15.0),
+        ],
+    )
     m = get_stock_metrics("LULU")
     assert m is not None
+    assert m.ticker == "LULU"
     assert m.forward_pe == 13.0
-    assert m.operating_margin == 0.199
-    assert m.roe == 0.31
-    # debt_to_equity is divided by 100
-    assert m.debt_to_equity == 0.36
-    assert m.dividend_yield is None
+    assert m.peg_ratio == 0.90
+    assert m.source == "httpx"
+    assert len(m.valuation_history) == 2
+    mock_fetch.assert_called_once_with("LULU")
 
 
-@patch("app.services.stock_service.yf.Ticker")
-def test_get_stock_metrics_missing_fields_become_none(mock_ticker):
-    mock_ticker.return_value.info = {
-        "longName": "Tiny Inc",
-        "forwardPE": 20.0,
-        # everything else missing
-    }
-    m = get_stock_metrics("TINY")
-    assert m is not None
-    assert m.forward_pe == 20.0
-    assert m.trailing_pe is None
-    assert m.market_cap is None
+@patch("app.services.stock_service.yahoo_scraper.fetch")
+def test_get_stock_metrics_returns_none_when_scraper_fails(mock_fetch):
+    mock_fetch.return_value = None
+    assert get_stock_metrics("BOGUS") is None
+    mock_fetch.assert_called_once_with("BOGUS")
