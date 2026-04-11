@@ -1,0 +1,38 @@
+# Source control
+.git/
+.gitignore
+.gitattributes
+
+# Environment / secrets — defense in depth even though .env is gitignored
+.env
+.env.*
+
+# Virtual environments
+.venv/
+
+# Local tool state and caches
+.claude/
+.cursor/
+.playwright-mcp/
+.pytest_cache/
+.ruff_cache/
+.superpowers/
+
+# Python bytecode
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# OS junk
+.DS_Store
+**/.DS_Store
+
+# Tests, docs, scratch — not needed at runtime
+tests/
+docs/
+a1
+
+# IDE
+.idea/
+.vscode/
