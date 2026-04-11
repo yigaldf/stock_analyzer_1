@@ -5,6 +5,10 @@ or `None` on hard failure.
 """
 from __future__ import annotations
 
+from selectolax.parser import HTMLParser
+
+from app.models.schemas import StockMetrics
+
 
 def _to_float(s: str | None) -> float | None:
     """Parse a plain decimal string. Handles thousands separators and `--`."""
@@ -51,3 +55,20 @@ def _to_magnitude(s: str | None) -> float | None:
         return float(cleaned) * multiplier
     except ValueError:
         return None
+
+
+def _parse_document(html: str, ticker: str) -> StockMetrics | None:
+    """Parse a Yahoo Key Statistics HTML page into a StockMetrics.
+
+    Returns None on hard parse failure (root element missing).
+    Returns a partial StockMetrics with None-filled fields when individual
+    sections are missing. Real field parsing is added in later tasks — this
+    scaffold only verifies the document is parseable and returns the ticker.
+    """
+    try:
+        doc = HTMLParser(html)
+    except Exception:
+        return None
+    if doc.body is None:
+        return None
+    return StockMetrics(ticker=ticker)
