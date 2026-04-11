@@ -16,3 +16,14 @@ wheels/
 # Ruff
 .ruff_cache/
 .superpowers/
+
+# OS junk
+.DS_Store
+
+# Local tool configs (Claude Code, Cursor, Playwright MCP traces)
+.claude/
+.cursor/
+.playwright-mcp/
+
+# Scratch files
+a1
