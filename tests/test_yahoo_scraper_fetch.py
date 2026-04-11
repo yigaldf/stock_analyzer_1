@@ -8,6 +8,7 @@ so tests never launch a real Chromium browser.
 from pathlib import Path
 
 import httpx
+import pytest
 from pytest_httpx import HTTPXMock
 
 from app.services import yahoo_scraper
@@ -98,9 +99,12 @@ def test_fetch_returns_none_when_both_backends_fail(
     assert fetch("LULU") is None
 
 
-def test_fetch_returns_none_when_both_backends_raise(
+def test_fetch_propagates_when_playwright_raises_unguarded(
     httpx_mock: HTTPXMock, monkeypatch
 ):
+    """If _fetch_via_playwright raises (not a wrapped PlaywrightError),
+    fetch() propagates. The internal Exception catch inside
+    _fetch_via_playwright is the single safety net; fetch() trusts it."""
     httpx_mock.add_exception(httpx.ReadTimeout("timeout"))
 
     def raising_playwright(ticker):
@@ -109,4 +113,5 @@ def test_fetch_returns_none_when_both_backends_raise(
     monkeypatch.setattr(
         yahoo_scraper, "_fetch_via_playwright", raising_playwright
     )
-    assert fetch("LULU") is None
+    with pytest.raises(RuntimeError, match="chromium crashed"):
+        fetch("LULU")

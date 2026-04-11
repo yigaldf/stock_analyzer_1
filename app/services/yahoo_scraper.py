@@ -299,17 +299,27 @@ def _parse_document(html: str, ticker: str) -> StockMetrics | None:
     )
 
 
-def _looks_like_anti_bot_stub(html: str) -> bool:
+def _looks_like_anti_bot_stub(html: str, ticker: str | None = None) -> bool:
     """Detect Yahoo's anti-bot 404 stub.
 
     Yahoo serves a ~500-byte JS redirect page with the phrase
     'Content is currently unavailable' when its edge layer rejects a
-    bare HTTP client. Real rendered pages are north of 200 KB, so a
-    dual check (size + phrase) is both cheap and robust.
+    bare HTTP client. Real rendered pages are north of 200 KB.
+
+    Returns True on either signal. The two conditions are logged
+    separately so ops can tell the phrase-based and size-based matches
+    apart (a size-only match on a real ticker would be suspicious).
     """
-    if len(html) < _STUB_MIN_SIZE:
-        return True
     if "Content is currently unavailable" in html:
+        return True
+    if len(html) < _STUB_MIN_SIZE:
+        logger.warning(
+            "yahoo_scraper: httpx response for %s is %d bytes (< %d) "
+            "with no stub phrase; treating as stub",
+            ticker or "<unknown>",
+            len(html),
+            _STUB_MIN_SIZE,
+        )
         return True
     return False
 
@@ -333,7 +343,7 @@ def _fetch_via_httpx(ticker: str) -> str | None:
         )
         return None
     html = response.text
-    if _looks_like_anti_bot_stub(html):
+    if _looks_like_anti_bot_stub(html, ticker=ticker):
         logger.info(
             "yahoo_scraper: httpx returned anti-bot stub for %s, "
             "will fall back to playwright",
@@ -405,15 +415,7 @@ def fetch(ticker: str) -> StockMetrics | None:
 
     # Fallback
     if html is None:
-        try:
-            html = _fetch_via_playwright(ticker)
-        except Exception as exc:
-            logger.warning(
-                "yahoo_scraper: playwright raised unexpectedly for %s: %s",
-                ticker,
-                exc,
-            )
-            html = None
+        html = _fetch_via_playwright(ticker)
         if html:
             source = "playwright"
 
