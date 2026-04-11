@@ -1,4 +1,4 @@
-from app.models.schemas import CategoryScore, StockInfo, StockMetrics, StockRanking
+from app.models.schemas import CategoryScore, QuarterlyValuation, StockInfo, StockMetrics, StockRanking
 
 
 def test_stock_info_roundtrip():
@@ -24,12 +24,12 @@ def test_stock_metrics_allows_none():
         market_cap=None,
         profit_margin=None,
         operating_margin=None,
-        revenue_growth=None,
-        eps_growth=None,
+        revenue_growth_yoy=None,
+        earnings_growth_yoy=None,
         roe=None,
         debt_to_equity=None,
         beta=None,
-        dividend_yield=None,
+        forward_dividend_yield=None,
     )
     assert m.forward_pe == 13.0
     assert m.trailing_pe is None
@@ -55,9 +55,6 @@ def test_stock_ranking_fields():
     )
     assert ranking.rank == 2
     assert ranking.weighted_score == 3.8
-
-
-from app.models.schemas import QuarterlyValuation
 
 
 def test_quarterly_valuation_roundtrip():
