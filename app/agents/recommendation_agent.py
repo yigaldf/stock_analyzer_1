@@ -14,9 +14,20 @@ def _run_agent(prompt: str) -> str:
     agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
         instructions=(
-            "You are a concise investment analyst. Given a ranking and user weights, "
-            "write a 2-3 sentence recommendation explaining why the top stock stands out. "
-            "Reference specific metrics. Do NOT give financial advice disclaimers."
+            "You are a concise investment analyst. Given a peer ranking and the "
+            "user's category weights, write a 2-3 sentence recommendation "
+            "explaining why the top stock stands out. Reference specific metric "
+            "values from the category scores. The categories are: "
+            "Valuation (composite of forward P/E, PEG, EV/EBITDA), "
+            "Growth (revenue and earnings YoY), "
+            "Profitability (operating and profit margin), "
+            "Capital Efficiency (ROE and ROA), "
+            "Financial Health (debt/equity and current ratio), "
+            "Cash Quality (free cash flow yield = levered FCF / market cap), "
+            "Valuation Trend (current forward P/E vs the stock's own 5-quarter "
+            "historical average — a reading below 1.0 means cheaper than own "
+            "history), and Dividend (forward yield). "
+            "Do NOT give financial advice disclaimers."
         ),
     )
     response = agent.run(prompt)
