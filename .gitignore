@@ -13,6 +13,9 @@ wheels/
 .env
 .mcp.json
 
+# Cache
+.cache/
+
 # Ruff
 .ruff_cache/
 .superpowers/

@@ -487,25 +487,27 @@ def _fetch_via_playwright(ticker: str) -> str | None:
         return None
 
 
+_SIGNAL_FIELDS = (
+    "forward_pe",
+    "peg_ratio",
+    "market_cap",
+    "profit_margin",
+    "operating_margin",
+    "roe",
+    "total_cash",
+    "beta",
+)
+_MIN_SIGNAL_COUNT = 3
+
+
 def _metrics_has_any_data(m: StockMetrics) -> bool:
-    """Return True if parsed metrics contain at least one non-None signal
-    field. A parser that runs against a mostly-empty HTML page produces a
-    StockMetrics where every field is None — indistinguishable from
-    "successful fetch, no data" at the UI layer. Treat it as a parse
-    failure so fetch() can fall back or warn."""
-    signal_fields = (
-        "forward_pe",
-        "peg_ratio",
-        "market_cap",
-        "profit_margin",
-        "operating_margin",
-        "roe",
-        "total_cash",
-        "beta",
-    )
-    return any(getattr(m, f) is not None for f in signal_fields) or bool(
-        m.valuation_history
-    )
+    """Return True if parsed metrics contain enough non-None signal fields.
+
+    A single field (e.g. forward_pe) can slip through from a partially-
+    rendered anti-bot page. Require at least _MIN_SIGNAL_COUNT fields so
+    that near-empty parses fall back to Playwright."""
+    count = sum(1 for f in _SIGNAL_FIELDS if getattr(m, f) is not None)
+    return count >= _MIN_SIGNAL_COUNT or bool(m.valuation_history)
 
 
 def fetch(ticker: str) -> StockMetrics | None:

@@ -56,8 +56,10 @@ def test_get_stock_info_on_exception_returns_none(mock_ticker):
     assert get_stock_info("LULU") is None
 
 
+@patch("app.services.stock_service.metrics_cache.set")
+@patch("app.services.stock_service.metrics_cache.get", return_value=None)
 @patch("app.services.stock_service.yahoo_scraper.fetch")
-def test_get_stock_metrics_delegates_to_scraper(mock_fetch):
+def test_get_stock_metrics_delegates_to_scraper(mock_fetch, _cache_get, _cache_set):
     mock_fetch.return_value = StockMetrics(
         ticker="LULU",
         forward_pe=13.0,
@@ -78,8 +80,10 @@ def test_get_stock_metrics_delegates_to_scraper(mock_fetch):
     mock_fetch.assert_called_once_with("LULU")
 
 
+@patch("app.services.stock_service.metrics_cache.set")
+@patch("app.services.stock_service.metrics_cache.get", return_value=None)
 @patch("app.services.stock_service.yahoo_scraper.fetch")
-def test_get_stock_metrics_returns_none_when_scraper_fails(mock_fetch):
+def test_get_stock_metrics_returns_none_when_scraper_fails(mock_fetch, _cache_get, _cache_set):
     mock_fetch.return_value = None
     assert get_stock_metrics("BOGUS") is None
     mock_fetch.assert_called_once_with("BOGUS")
