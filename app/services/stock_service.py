@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 
 from app.models.schemas import StockInfo, StockMetrics
-from app.services import yahoo_scraper
+from app.services import metrics_cache, yahoo_scraper
 
 
 def _is_valid_info(info: dict | None) -> bool:
@@ -63,4 +63,17 @@ def get_stock_metrics(ticker: str) -> StockMetrics | None:
     pipeline) to get reliable PEG, historical valuation, same-snapshot
     pricing across peers, and source provenance.
     """
-    return yahoo_scraper.fetch(ticker)
+    cached = metrics_cache.get(ticker)
+    if cached is not None:
+        return cached
+
+    metrics = yahoo_scraper.fetch(ticker)
+    if metrics is not None:
+        if metrics.name is None:
+            try:
+                info = yf.Ticker(ticker).info
+                metrics.name = info.get("longName") or info.get("shortName")
+            except Exception:
+                pass
+        metrics_cache.set(ticker, metrics)
+    return metrics

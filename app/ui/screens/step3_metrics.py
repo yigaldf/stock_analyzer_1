@@ -121,6 +121,8 @@ _STEP3_CSS = """
 .metrics-table td:first-child {
     text-align: left;
     font-weight: 600;
+    width: 140px;
+    max-width: 140px;
 }
 .metrics-table tr:hover {
     background-color: rgba(128, 128, 128, 0.06);
@@ -208,15 +210,31 @@ def _source_badge_html(metrics_list: list[StockMetrics]) -> str:
     return "".join(parts)
 
 
-def _render_metric_group(
-    group_name: str,
-    rows: list[tuple[str, str, Callable[[float], str]]],
-    metrics_list: list[StockMetrics],
-) -> None:
-    st.markdown(f"#### {group_name}")
-    data: dict[str, list[str]] = {"Metric": [r[0] for r in rows]}
+def _render_all_metrics(metrics_list: list[StockMetrics]) -> None:
+    """Render a single combined table with company name row and all metric groups."""
+    # Build all row labels and values
+    labels: list[str] = ["Company"]
+    values_by_ticker: dict[str, list[str]] = {
+        m.ticker: [(m.name or "—")[:12]] for m in metrics_list
+    }
+
+    for group_name, rows in _METRIC_GROUPS:
+        # Section header row
+        labels.append(f"<b>{group_name}</b>")
+        for m in metrics_list:
+            values_by_ticker[m.ticker].append("")
+        # Metric rows
+        for display_name, attr, fmt in rows:
+            labels.append(display_name)
+            for m in metrics_list:
+                values_by_ticker[m.ticker].append(
+                    _format(getattr(m, attr), fmt)
+                )
+
+    data: dict[str, list[str]] = {"Metric": labels}
     for m in metrics_list:
-        data[m.ticker] = [_format(getattr(m, attr), fmt) for _, attr, fmt in rows]
+        data[m.ticker] = values_by_ticker[m.ticker]
+
     df = pd.DataFrame(data)
     st.markdown(
         df.to_html(index=False, classes="metrics-table", escape=False),
@@ -275,9 +293,8 @@ def render() -> None:
     # Source badges — shows which fetch backend produced each ticker's row.
     st.markdown(_source_badge_html(metrics_list), unsafe_allow_html=True)
 
-    # Grouped metric tables.
-    for group_name, rows in _METRIC_GROUPS:
-        _render_metric_group(group_name, rows, metrics_list)
+    # Single combined comparison table.
+    _render_all_metrics(metrics_list)
 
     # Forward P/E trend chart below the tables.
     _render_forward_pe_trend(metrics_list)

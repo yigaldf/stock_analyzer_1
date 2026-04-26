@@ -30,7 +30,7 @@ def render() -> None:
 
     st.write(
         f"AI-suggested competitors for **{info.ticker}** ({info.name}). "
-        "Select between 1 and 7."
+        "Select between 1 and 9."
     )
 
     _load_candidates()
@@ -104,8 +104,8 @@ def render() -> None:
     if len(selected) == 0:
         if candidates:
             st.info("Select at least 1 competitor to continue.")
-    elif len(selected) > 7:
-        st.error(f"You selected {len(selected)} competitors. Maximum is 7.")
+    elif len(selected) > 9:
+        st.error(f"You selected {len(selected)} competitors. Maximum is 9.")
     else:
         next_enabled = True
 

@@ -23,9 +23,69 @@ _CATEGORY_LABELS = {
 }
 
 
+def _rebalance_weights(changed_cat: str, new_pct: int) -> None:
+    """Redistribute weight change across other categories proportionally."""
+    weights_pct: dict[str, int] = st.session_state.get("_weights_pct", {})
+    if not weights_pct:
+        return
+
+    old_pct = weights_pct.get(changed_cat, 0)
+    delta = new_pct - old_pct
+    if delta == 0:
+        return
+
+    weights_pct[changed_cat] = new_pct
+
+    # Remaining budget the other sliders must share
+    others = [c for c in CATEGORIES if c != changed_cat]
+    other_total = sum(weights_pct[c] for c in others)
+
+    if other_total == 0:
+        # All others are zero — spread the deficit evenly
+        per_cat = (100 - new_pct) // len(others)
+        remainder = (100 - new_pct) - per_cat * len(others)
+        for j, c in enumerate(others):
+            weights_pct[c] = per_cat + (1 if j < remainder else 0)
+    else:
+        target_other_total = 100 - new_pct
+        # Proportional redistribution
+        scaled = {c: weights_pct[c] * target_other_total / other_total for c in others}
+        # Round to integers that sum exactly to target_other_total
+        floored = {c: int(v) for c, v in scaled.items()}
+        remainder = target_other_total - sum(floored.values())
+        fracs = sorted(others, key=lambda c: scaled[c] - floored[c], reverse=True)
+        for j, c in enumerate(fracs):
+            floored[c] += 1 if j < remainder else 0
+        for c in others:
+            weights_pct[c] = max(0, floored[c])
+
+    st.session_state["_weights_pct"] = weights_pct
+    # Sync slider keys
+    for c in CATEGORIES:
+        st.session_state[f"weight_slider_{c}"] = weights_pct[c]
+
+
 def _render_weight_sliders() -> dict[str, float]:
     st.markdown("#### Weights")
     current = st.session_state.get(state.WEIGHTS, dict(DEFAULT_WEIGHTS))
+
+    # Initialize internal pct tracker once
+    if "_weights_pct" not in st.session_state:
+        st.session_state["_weights_pct"] = {
+            cat: int(round(current.get(cat, 0) * 100)) for cat in CATEGORIES
+        }
+
+    weights_pct: dict[str, int] = st.session_state["_weights_pct"]
+
+    # Detect which slider changed and rebalance
+    for cat in CATEGORIES:
+        key = f"weight_slider_{cat}"
+        if key in st.session_state and st.session_state[key] != weights_pct[cat]:
+            _rebalance_weights(cat, st.session_state[key])
+            break
+
+    weights_pct = st.session_state["_weights_pct"]
+
     cols = st.columns(3)
     new_weights: dict[str, float] = {}
     for i, cat in enumerate(CATEGORIES):
@@ -34,7 +94,7 @@ def _render_weight_sliders() -> dict[str, float]:
                 _CATEGORY_LABELS[cat],
                 min_value=0,
                 max_value=100,
-                value=int(round(current.get(cat, 0) * 100)),
+                value=weights_pct[cat],
                 step=5,
                 key=f"weight_slider_{cat}",
             )

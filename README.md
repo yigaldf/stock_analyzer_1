@@ -1,3 +1,13 @@
+---
+title: Stock Analyzer
+emoji: 📈
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 📈 Stock Analyzer
 
 A 4-step wizard for comparing a stock against its competitors on key financial metrics, with AI-powered peer discovery and weighted ranking recommendations.

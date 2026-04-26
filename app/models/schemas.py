@@ -32,6 +32,7 @@ class QuarterlyValuation(BaseModel):
 
 class StockMetrics(BaseModel):
     ticker: str
+    name: str | None = None
 
     # Valuation (current snapshot — mirrors the "Current" column in valuation_history)
     forward_pe: float | None = None
