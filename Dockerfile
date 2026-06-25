@@ -27,7 +27,9 @@ RUN uv run playwright install --with-deps chromium && \
 # Deliberately NO `chown -R app:app /app`: the venv is already world-readable
 # via Python's default umask, and chown-ing it balloons the image by ~670 MB
 # because Docker's overlay filesystem copies every file into a new layer.
-RUN useradd -m -u 1000 app
+RUN useradd -m -u 1000 app && \
+    mkdir -p /app/.cache/metrics && \
+    chown -R app:app /app/.cache
 USER app
 
 # --- Layer 4: App source (most-changing layer last for caching) ---
