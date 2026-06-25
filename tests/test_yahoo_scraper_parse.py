@@ -18,6 +18,17 @@ def test_parse_document_returns_metrics_with_ticker(lulu_html):
     assert metrics.ticker == "LULU"
 
 
+def test_parse_document_extracts_company_name(lulu_html):
+    # The Key Statistics page <title> begins with the company name followed
+    # by " (TICKER) ...". The parser should surface that as metrics.name so
+    # the Step 1 fallback (when yfinance is blocked) can display a real name.
+    m = _parse_document(lulu_html, "LULU")
+    assert m.name is not None
+    assert "lululemon" in m.name.lower()
+    # The "(LULU) ..." suffix must be stripped off.
+    assert "(" not in m.name
+
+
 def test_parse_document_extracts_profitability(lulu_html):
     m = _parse_document(lulu_html, "LULU")
     # Profit margin and operating margin are both expressed as decimals

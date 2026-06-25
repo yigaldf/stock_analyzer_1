@@ -264,6 +264,25 @@ def _parse_valuation_table(
     return snapshot, histories
 
 
+def _parse_company_name(doc: HTMLParser, ticker: str) -> str | None:
+    """Extract the company display name from the page ``<title>``.
+
+    Yahoo's Key Statistics ``<title>`` is shaped like
+    ``"Lululemon Athletica Inc. (LULU) Valuation Measures ..."``. We take
+    everything before the first ``" ("`` (the ticker parenthetical) and
+    return it stripped. Returns None if the title is missing or doesn't
+    contain a parenthetical (so callers can fall back to the bare ticker).
+    """
+    title_node = doc.css_first("title")
+    if title_node is None:
+        return None
+    title = title_node.text(strip=True)
+    if not title:
+        return None
+    name = title.split(" (", 1)[0].strip()
+    return name or None
+
+
 def _parse_document(html: str, ticker: str) -> StockMetrics | None:
     """Parse a Yahoo Key Statistics HTML page into a StockMetrics.
 
@@ -294,6 +313,7 @@ def _parse_document(html: str, ticker: str) -> StockMetrics | None:
 
     return StockMetrics(
         ticker=ticker,
+        name=_parse_company_name(doc, ticker),
         valuation_history=history,
         **merged,
     )
